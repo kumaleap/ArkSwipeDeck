@@ -1,0 +1,472 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# 鸿蒙ArkTS开发规范 (严格版)
+
+> 基于华为官方ArkTS编码风格指南、高性能编程规范及TypeScript迁移指南，严格遵循ArkTS语法限制
+
+## 1. ArkTS 严格语法限制
+
+### 1.1 禁用的JavaScript/TypeScript特性
+
+**❌ 绝对禁止使用：**
+
+```typescript
+// ❌ 解构赋值 (arkts-no-destruct-decls)
+const { name, age } = user;
+let [first, second] = array;
+
+// ❌ 扩展运算符用于对象 (arkts-no-spread)
+const merged = { ...defaultOptions, ...userOptions };
+const newArray = [...oldArray];
+
+// ❌ 动态类型和any
+let data: any = getValue();
+
+// ❌ 枚举
+enum Direction {
+  UP = 'up',
+  DOWN = 'down'
+}
+
+// ❌ as const 断言 (arkts-no-as-const)
+const config = {
+  maxCount: 10,
+  enabled: true
+} as const;
+
+// ❌ 命名空间
+namespace Utils {
+  export function helper() {}
+}
+
+// ❌ 高级类型操作
+type Partial<T> = { [P in keyof T]?: T[P] };
+```
+
+**✅ 必须替换为：**
+
+```typescript
+// ✅ 显式赋值替代解构
+const name: string = user.name;
+const age: number = user.age;
+
+// ✅ 手动对象合并替代扩展运算符
+function mergeOptions(defaults: Options, user: Options): Required<Options> {
+  const merged: Required<Options> = {
+    prop1: defaults.prop1,
+    prop2: defaults.prop2
+  };
+  if (user.prop1 !== undefined) {
+    merged.prop1 = user.prop1;
+  }
+  if (user.prop2 !== undefined) {
+    merged.prop2 = user.prop2;
+  }
+  return merged;
+}
+
+// ✅ 循环替代数组扩展运算符
+const newArray: T[] = [];
+for (let i = 0; i < oldArray.length; i++) {
+  newArray.push(oldArray[i]);
+}
+
+// ✅ const enum替代普通枚举
+export const enum Direction {
+  UP = 'up',
+  DOWN = 'down'
+}
+
+// ✅ ES模块替代命名空间
+export class Utils {
+  static helper(): void {}
+}
+
+// ✅ 明确类型替代动态类型
+interface UserData {
+  name: string;
+  age: number;
+}
+const data: UserData = getValue();
+
+// ❌ 错误：静态方法中使用this
+public static createAnimateParam(config: AnimationConfig): AnimateParam {
+  return {
+    curve: this.createSpringCurve(config), // ArkTS编译错误
+  };
+}
+
+// ✅ 正确：静态方法中使用类名
+public static createAnimateParam(config: AnimationConfig): AnimateParam {
+  return {
+    curve: AnimationUtils.createSpringCurve(config), // 符合ArkTS规范
+  };
+}
+
+// ✅ ForEach回调函数不使用void类型注解
+ForEach(dataList, (item: DataType) => {
+  Text(item.name)
+});
+
+// ✅ ForEach的keyGenerator可以有返回类型注解
+ForEach(
+  dataList, 
+  (item: DataType) => {
+    Text(item.name)
+  },
+  (item: DataType): string => item.id  // keyGenerator可以有返回类型
+);
+
+```
+
+## 3. 性能优化严格规范
+
+### 3.1 状态管理最佳实践
+
+```typescript
+@Component
+struct OptimizedComponent {
+  // ✅ 最小化状态变量数量
+  @State private readonly items: ItemData[] = [];
+  @State private currentIndex: number = 0;
+  
+  // ✅ 使用@Track优化对象监听
+  @State private user: UserProfile = {
+    id: 0,
+    name: "",
+    settings: new TrackedSettings()
+  };
+  
+  // ❌ 避免频繁状态更新
+  // @State private mouseX: number = 0;  // 不要监听高频事件
+  
+  // ✅ 批量状态更新
+  private updateUserData(newData: Partial<UserProfile>): void {
+    // 一次性更新所有相关状态
+    this.user = {
+      ...this.user,  // 注意：这里仍需要手动处理，不能用扩展运算符
+      id: newData.id ?? this.user.id,
+      name: newData.name ?? this.user.name
+    };
+  }
+}
+
+@Observed
+class TrackedSettings {
+  @Track isNotificationEnabled: boolean = true;
+  @Track theme: string = 'light';
+}
+```
+
+### 3.2 渲染性能优化
+
+```typescript
+@Component
+struct ListComponent {
+  @State private dataList: ItemData[] = [];
+  
+  build(): void {
+    List() {
+      // ✅ 使用稳定的key函数
+      ForEach(
+        this.dataList,
+        (item: ItemData): void => {
+          this.buildListItem(item);
+        },
+        (item: ItemData): string => item.id.toString()
+      )
+    }
+  }
+  
+  // ✅ 使用@Builder优化复杂项目
+  @Builder
+  private buildListItem(item: ItemData): void {
+    // 只渲染可见项目的具体实现
+    if (this.shouldRenderItem(item)) {
+      ListItem() {
+        // 项目内容
+      }
+    }
+  }
+  
+  private shouldRenderItem(item: ItemData): boolean {
+    // 实现可见性判断逻辑
+    return true;
+  }
+}
+```
+
+### 3.3 内存管理
+
+```typescript
+@Component
+struct ManagedComponent {
+  private _timers: number[] = [];
+  private _subscriptions: Subscription[] = [];
+  
+  aboutToDisappear(): void {
+    this.cleanup();
+  }
+  
+  private cleanup(): void {
+    // ✅ 清理定时器
+    for (let i = 0; i < this._timers.length; i++) {
+      clearTimeout(this._timers[i]);
+    }
+    this._timers = [];
+    
+    // ✅ 清理订阅
+    for (let i = 0; i < this._subscriptions.length; i++) {
+      this._subscriptions[i].unsubscribe();
+    }
+    this._subscriptions = [];
+    
+    // ✅ 清理大对象引用
+    this._largeData = null;
+  }
+}
+```
+
+## 4. 严格的代码风格
+
+### 4.1 命名规范 (严格执行)
+
+```typescript
+// ✅ 类、接口、枚举：大驼峰
+class UserService {}
+interface ApiResponse {}
+const enum HttpStatus {}
+
+// ✅ 变量、函数：小驼峰
+const userName: string = 'John';
+function calculateTotal(): number {}
+
+// ✅ 常量：全大写下划线
+const MAX_RETRY_COUNT: number = 3;
+const API_BASE_URL: string = 'https://api.example.com';
+
+// ✅ 私有成员：下划线前缀
+private _internalState: State;
+private _handleClick(): void {}
+
+// ✅ 文件名：与主要导出同名
+// UserProfile.ets -> export struct UserProfile
+// ApiService.ets -> export class ApiService
+```
+
+### 4.2 注释规范
+
+```typescript
+/**
+ * 用户服务类
+ * 
+ * 提供用户相关的CRUD操作
+ * 遵循单一职责原则，只处理用户数据逻辑
+ * 
+ * @since 1.0.0
+ * @syscap SystemCapability.ArkUI.ArkUI.Full
+ */
+export class UserService {
+  /**
+   * 根据ID获取用户信息
+   * 
+   * @param userId - 用户唯一标识符
+   * @returns Promise包装的用户数据，如果不存在返回null
+   * @throws {NetworkError} 网络请求失败时抛出
+   * @since 1.0.0
+   */
+  public async getUserById(userId: number): Promise<UserProfile | null> {
+    // 单行注释使用双斜杠，注释前空一格
+    const response = await this.httpClient.get(`/users/${userId}`);
+    
+    /*
+     * 多行注释用于复杂逻辑说明
+     * 每行都要有星号
+     */
+    if (response.status === 404) {
+      return null;
+    }
+    
+    return response.data;
+  }
+}
+```
+
+## 5. 错误处理规范
+
+### 5.1 防御式编程
+
+```typescript
+// ✅ 空值检查
+function processUser(user: UserProfile | null): string {
+  if (user === null || user === undefined) {
+    return 'Unknown User';
+  }
+  
+  // 使用可选链和空值合并
+  const name: string = user.profile?.name ?? 'No Name';
+  return name;
+}
+
+// ✅ 参数验证
+function updateScore(score: number): void {
+  if (score < 0 || score > 100) {
+    throw new Error('Score must be between 0 and 100');
+  }
+  
+  if (Number.isNaN(score)) {
+    throw new Error('Score must be a valid number');
+  }
+  
+  // 处理逻辑
+}
+
+// ✅ 错误边界
+function riskyOperation(): void {
+  try {
+    // 可能出错的操作
+    performOperation();
+  } catch (error) {
+    // 记录错误
+    console.error('Operation failed:', error);
+    
+    // 恢复策略
+    this.recoverFromError();
+    
+    // 不要重新抛出，除非有明确处理策略
+  }
+}
+```
+
+## 6. 异步处理规范
+
+### 6.1 Promise最佳实践
+
+```typescript
+// ✅ 正确的async/await使用
+async function loadUserData(userId: number): Promise<UserProfile | null> {
+  try {
+    const user: UserProfile = await this.userService.getUser(userId);
+    const profile: UserProfile = await this.profileService.getProfile(userId);
+    
+    return this.mergeUserData(user, profile);
+  } catch (error) {
+    console.error('Failed to load user data:', error);
+    return null;
+  }
+}
+
+// ✅ 并行请求优化
+async function loadMultipleData(): Promise<[UserData, ProfileData]> {
+  const userPromise: Promise<UserData> = this.fetchUser();
+  const profilePromise: Promise<ProfileData> = this.fetchProfile();
+  
+  try {
+    const userData: UserData = await userPromise;
+    const profileData: ProfileData = await profilePromise;
+    
+    return [userData, profileData];
+  } catch (error) {
+    throw new Error(`Data loading failed: ${error.message}`);
+  }
+}
+```
+
+## 7. 导入导出规范
+
+```typescript
+// ✅ 类型导入使用type关键字
+import type { UserProfile, ApiResponse } from './types';
+import { UserService } from './services';
+
+// ✅ 导出规范
+export { UserService } from './UserService';
+export type { UserProfile, ApiResponse } from './types';
+export { DEFAULT_CONFIG } from './constants';
+
+// ✅ 模块结构
+// index.ts - 统一导出入口
+export { ComponentA } from './ComponentA';
+export { ComponentB } from './ComponentB';
+export type { TypeA, TypeB } from './types';
+```
+
+## 8. 测试规范
+
+### 8.1 单元测试
+
+```typescript
+import { describe, it, expect, beforeEach } from '@ohos/hypium';
+import { UserService } from '../src/UserService';
+
+export default function userServiceTest(): void {
+  describe('UserService', (): void => {
+    let userService: UserService;
+    
+    beforeEach((): void => {
+      userService = new UserService();
+    });
+    
+    it('should return user data for valid ID', async (): Promise<void> => {
+      // Arrange
+      const userId: number = 123;
+      
+      // Act
+      const result: UserProfile | null = await userService.getUserById(userId);
+      
+      // Assert
+      expect(result).not.toBe(null);
+      expect(result?.id).toBe(userId);
+    });
+    
+    it('should return null for invalid ID', async (): Promise<void> => {
+      // Arrange
+      const invalidId: number = -1;
+      
+      // Act
+      const result: UserProfile | null = await userService.getUserById(invalidId);
+      
+      // Assert
+      expect(result).toBe(null);
+    });
+  });
+}
+```
+
+## 9. 构建和配置
+
+### 9.1 模块配置
+
+```json5
+// module.json5
+{
+  "module": {
+    "name": "mymodule",
+    "type": "shared",
+    "srcEntry": "./src/main/ets/Index.ets",
+    "description": "共享模块描述",
+    "mainElement": "MainAbility",
+    "deviceTypes": ["phone", "tablet"],
+    "deliveryWithInstall": true
+  }
+}
+```
+
+### 9.2 构建配置
+
+```typescript
+// build-profile.json5
+{
+  "apiType": "stageMode",
+  "buildOption": {
+    "strictMode": {
+      "useStrict": true,
+      "noImplicitAny": true,
+      "strictNullChecks": true
+    }
+  }
+}
+```

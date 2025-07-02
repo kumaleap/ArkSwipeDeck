@@ -1,10 +1,12 @@
 {
   "name": "entry",
   "version": "1.0.0",
-  "description": "Please describe the basic information.",
+  "description": "ArkSwipeDeck 示例应用入口模块",
   "main": "",
-  "author": "",
-  "license": "",
-  "dependencies": {}
+  "author": "ArkSwipeDeck Contributors",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "arkswipe-deck": "file:../library"
+  }
 }
 
