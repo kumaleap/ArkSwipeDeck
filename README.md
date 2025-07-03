@@ -4,159 +4,290 @@
 [![HarmonyOS](https://img.shields.io/badge/HarmonyOS-4.0%2B-orange.svg)](https://developer.harmonyos.com/)
 [![ArkTS](https://img.shields.io/badge/ArkTS-Latest-green.svg)](https://developer.harmonyos.com/cn/docs/documentation/doc-guides/arkts-get-started-0000001504769321)
 
-> 一个纯净的鸿蒙ArkTS卡片堆叠滑动容器组件，提供Tinder风格的滑动交互、流畅动画和完整的事件回调系统。
+> 纯净的鸿蒙ArkTS卡片堆叠滑动组件，提供 Tinder 风格的滑动交互、流畅动画和完整的事件回调体系。
 
-## 🎯 项目概述
+---
 
-本项目包含两个主要部分：
+## ✨ 特性亮点
 
-### 📚 Library 模块
-- 位置：`library/` 
-- 核心的SwipeCardStack组件实现
-- 完整的API和工具类
-- 详细的文档和示例 - [查看文档](./library/README.md)
+- 🧩 **纯容器设计**：不预设UI样式，完全可自定义
+- 🏗️ **Builder模式**：通过ArkTS Builder自定义卡片内容
+- 🎭 **Tinder风格交互**：经典卡片堆叠滑动体验
+- ⚡ **流畅动画**：支持弹性、摩擦、缓动等多种动画类型
+- 🕹️ **丰富手势**：支持拖拽、滑动、回弹等交互
+- 🛰️ **完整事件系统**：支持滑动、点击、栈空等事件回调
+- 🔄 **编程式控制**：API支持程序化滑动、重置等操作
+- ♻️ **无限循环模式**：支持无限循环卡片堆叠
+- 📱 **响应式设计**：自适应不同屏幕尺寸
+- 🚀 **高性能**：优化的渲染与内存管理
 
-### 📱 Entry 模块  
-- 位置：`entry/`
-- 最佳实践示例应用
-- 展示组件的所有功能
-- 可直接运行的演示
-
-### 🎨 快速预览
-
-```typescript
-// 最简单的使用方式
-SwipeCardStack({
-  cardDataList: this.cards,
-  cardBuilder: this.buildCard
-})
-
-@Builder
-buildCard(data: CardData, index: number) {
-  Text(data.title)
-    .width('100%')
-    .height('100%')
-    .textAlign(TextAlign.Center)
-    .backgroundColor(Color.Blue)
-    .borderRadius(16)
-}
-```
-
-## ✨ 核心特性
-
-- 🎯 **纯容器设计** - 不预设任何UI样式，完全可定制
-- 🎨 **Builder模式** - 通过ArkTS Builder完全自定义卡片内容
-- 🎭 **Tinder风格** - 经典的卡片堆叠滑动交互
-- ⚡ **流畅动画** - 支持弹簧、摩擦、缓动等多种动画类型
-- 🎮 **丰富手势** - 支持拖拽、滑动、回弹等手势交互
-- 📡 **事件系统** - 完整的事件回调支持
-- 🎛️ **程序化控制** - 提供API进行程序化操作
-- 🔄 **循环模式** - 支持无限循环模式
-- 📱 **响应式设计** - 自适应不同屏幕尺寸
-- 🚀 **高性能** - 优化的渲染和内存管理
+---
 
 ## 🚀 快速开始
 
 ### 运行示例
 
-1. 使用DevEco Studio打开项目
-2. 选择entry模块作为运行目标
-3. 点击运行按钮
+1. 使用 DevEco Studio 打开项目
+2. 选择 `entry` 模块作为运行目标
+3. 点击运行按钮，体验完整卡片滑动功能
 
-### 在你的项目中使用
+### 集成到你的项目
+
+1. 复制 `library/` 目录到你的ArkTS工程中
+2. 在你的页面中导入核心组件：
 
 ```typescript
-import { SwipeCardStack } from 'library';
-import type { CardData, SwipeEvent } from 'library';
-import { SwipeDirection } from 'library';
+import { SwipeCardStack } from '../library';
+import type { UserInfo } from '../library/src/main/ets/types/SwipeCardTypes';
 
 @Component
 struct MyComponent {
-  @State cardList: CardData[] = [
-    { id: '1', index: 0, visible: true, data: { title: '卡片1' } },
-    { id: '2', index: 1, visible: true, data: { title: '卡片2' } }
+  @State private cards: UserInfo[] = [
+    { src: 'https://example.com/image1.jpg' },
+    { src: 'https://example.com/image2.jpg' }
   ];
 
   build() {
     SwipeCardStack({
-      cardDataList: this.cardList,
-      cardContentBuilder: this.buildCard,
-      callbacks: {
-        onCardSwiped: (event: SwipeEvent) => {
-          console.log(`卡片${event.direction === SwipeDirection.LEFT ? '拒绝' : '喜欢'}`);
-        }
-      }
+      cardDataList: this.cards,
+      cardBuilder: this.buildCard
     })
   }
 
   @Builder
-  buildCard(card: CardData, index: number) {
-    Text(card.data?.title)
+  buildCard(data: UserInfo, index: number) {
+    Image(data.src ?? '')
       .width('100%')
       .height('100%')
-      .textAlign(TextAlign.Center)
-      .backgroundColor(Color.White)
-      .borderRadius(12)
+      .borderRadius(20)
   }
 }
 ```
 
-## 📖 详细文档
+---
 
-详细的API文档请查看：[library/README.md](library/README.md)
+## 📚 详细API文档
+
+### SwipeCardStack 组件属性
+
+| 属性名            | 类型                        | 必需 | 默认值      | 说明                     |
+|-------------------|-----------------------------|------|-------------|--------------------------|
+| cardDataList      | `object[]`                  | ✅   | `[]`        | 卡片数据列表             |
+| swipeConfig       | `SwipeConfig`               | ❌   | `{}`        | 滑动配置选项             |
+| onCardSwiped      | `OnCardSwipedCallback`      | ❌   | `undefined` | 卡片滑动回调             |
+| onCardClicked     | `OnCardClickedCallback`     | ❌   | `undefined` | 卡片点击回调             |
+| onStackNearEmpty  | `OnStackNearEmptyCallback`  | ❌   | `undefined` | 卡片栈即将为空回调       |
+| onStackEmpty      | `OnStackEmptyCallback`      | ❌   | `undefined` | 卡片栈为空回调           |
+| cardBuilder       | `@BuilderParam`             | ❌   | `undefined` | 自定义卡片内容构建器     |
+
+### 公共方法
+
+```typescript
+// 程序化向左滑动
+swipeLeft(): void
+
+// 程序化向右滑动  
+swipeRight(): void
+
+// 重置卡片栈到初始状态
+reset(): void
+
+// 获取剩余卡片数量
+getRemainingCount(): number
+```
+
+### 配置选项 (SwipeConfig)
+
+```typescript
+interface SwipeConfig {
+  maxVisibleCards?: number;    // 最大可见卡片数 (默认: 4)
+  minStackSize?: number;       // 触发栈即将为空的最小卡片数 (默认: 2)
+  rotationAngle?: number;      // 卡片旋转角度 (默认: 15)
+  scaleRatio?: number;         // 卡片缩放比例 (默认: 0.95)
+  swipeThreshold?: number;     // 滑动触发阈值 (默认: 100)
+  animationDuration?: number;  // 动画持续时间 (默认: 300)
+  enableSpringBack?: boolean;  // 是否启用弹簧回弹 (默认: true)
+  cardSpacing?: number;        // 卡片间距 (默认: 8)
+}
+```
+
+### 回调函数类型
+
+```typescript
+// 卡片滑动回调
+type OnCardSwipedCallback = (direction: SwipeDirection, data: object, index: number) => void;
+
+// 卡片点击回调
+type OnCardClickedCallback = (data: object, index: number) => void;
+
+// 卡片栈即将为空回调
+type OnStackNearEmptyCallback = (remainingCount: number) => void;
+
+// 卡片栈为空回调
+type OnStackEmptyCallback = () => void;
+```
+
+### 卡片数据结构（示例）
+
+```typescript
+interface UserInfo {
+  src?: string; // 图片地址
+  // 你可以根据业务扩展更多字段
+}
+```
+
+### 滑动方向 (SwipeDirection)
+
+```typescript
+enum SwipeDirection {
+  LEFT = 'left',
+  RIGHT = 'right',
+  UP = 'up',
+  DOWN = 'down'
+}
+```
+
+---
+
+### 高级用法
+
+#### 自定义配置
+
+```typescript
+const customConfig: SwipeConfig = {
+  maxVisibleCards: 3,
+  rotationAngle: 20,
+  scaleRatio: 0.9,
+  swipeThreshold: 150,
+  animationDuration: 400,
+  enableSpringBack: true,
+  cardSpacing: 12
+};
+
+SwipeCardStack({
+  cardDataList: this.cards,
+  swipeConfig: customConfig,
+  onCardSwiped: this.handleCardSwiped,
+  cardBuilder: this.buildCard
+})
+```
+
+#### 完整事件处理
+
+```typescript
+private handleCardSwiped: OnCardSwipedCallback = (direction: SwipeDirection, data: object, index: number): void => {
+  switch (direction) {
+    case SwipeDirection.LEFT:
+      console.log('不喜欢:', data);
+      break;
+    case SwipeDirection.RIGHT:
+      console.log('喜欢:', data);
+      break;
+  }
+}
+
+private handleCardClicked: OnCardClickedCallback = (data: object, index: number): void => {
+  // 处理卡片点击
+  this.showCardDetail(data);
+}
+
+private handleStackNearEmpty: OnStackNearEmptyCallback = (remainingCount: number): void => {
+  // 加载更多数据
+  this.loadMoreCards();
+}
+
+private handleStackEmpty: OnStackEmptyCallback = (): void => {
+  // 显示空状态
+  this.showEmptyState();
+}
+```
+
+#### 程序化控制
+
+```typescript
+// 获取组件引用
+@State swipeCardRef: SwipeCardStack | null = null;
+
+// 在按钮点击时控制滑动
+Button('不喜欢')
+  .onClick((): void => {
+    this.swipeCardRef?.swipeLeft();
+  })
+
+Button('喜欢')  
+  .onClick((): void => {
+    this.swipeCardRef?.swipeRight();
+  })
+
+Button('重置')
+  .onClick((): void => {
+    this.swipeCardRef?.reset();
+  })
+```
+
+---
+
+### 性能优化建议
+
+- 使用轻量级布局组件，避免卡片内容复杂嵌套
+- 合理设置 `maxVisibleCards` 数量，提升渲染效率
+- 在 `onStackNearEmpty` 或 `onLoadNextPage` 中分批加载数据
+- 动画参数建议使用默认值以获得最佳性能
+- 及时清理已滑出的卡片数据，避免内存泄漏
+
+---
+
+### 常见问题 FAQ
+
+**Q: 卡片不响应滑动手势？**
+A: 检查卡片内容是否阻止了手势传播，确保没有其他手势处理器拦截事件。
+
+**Q: 动画卡顿？**
+A: 尝试降低 `maxVisibleCards` 数量，简化卡片内容，或调整动画参数。
+
+**Q: 内存占用过高？**
+A: 实现数据的动态加载和清理，避免一次性加载大量卡片数据。
+
+---
 
 ## 🏗️ 项目结构
 
 ```
 ArkSwipeDeck/
-├── entry/                          # 示例应用
+├── entry/                  # 示例应用（入口）
 │   └── src/main/ets/pages/
-│       └── Index.ets               # 最佳示例页面
-├── library/                        # 核心组件库
-│   ├── Index.ets                   # 主入口
-│   ├── README.md                   # 详细文档
-│   ├── src/main/ets/
-│   │   ├── components/             # 核心组件
-│   │   │   └── SwipeCardStack.ets
-│   │   ├── types/                  # 类型定义
-│   │   ├── utils/                  # 工具类
-│   │   └── constants/              # 常量配置
-│   └── examples/
-│       └── BasicUsage.ets          # 使用示例
-└── README.md                       # 项目说明
+│       └── Index.ets       # 示例页面，演示完整用法
+├── library/                # 组件库源码
+│   ├── Index.ets           # 统一导出入口
+│   ├── README.md           # 详细API文档
+│   └── src/main/ets/
+│       ├── components/     # SwipeCardStack等核心组件
+│       ├── types/          # 类型定义
+│       ├── utils/          # 工具类
+│       └── constants/      # 常量配置
+└── README.md               # 项目说明（当前文件）
 ```
-
-## 🎨 示例展示
-
-entry模块中的Index.ets展示了组件的完整功能：
-
-- ✅ 自定义卡片内容（头像、姓名、年龄、描述、兴趣标签）
-- ✅ 实时拖拽反馈和进度显示
-- ✅ 完整的事件处理（喜欢/拒绝统计）
-- ✅ 自动重新加载机制
-- ✅ 精美的UI设计和动画效果
-
-## 🔧 开发环境
-
-- HarmonyOS API 9+
-- DevEco Studio 4.0+
-- ArkTS支持
-
-## 📄 开源协议
-
-本项目采用 [Apache License 2.0](LICENSE) 开源协议。
-
-## 🤝 贡献
-
-欢迎提交Issue和Pull Request！
-
-## 📞 支持
-
-如有问题，请通过以下方式联系：
-
-- 📧 提交Issue
-- 💬 项目讨论区
 
 ---
 
-⭐ 如果这个项目对你有帮助，请给个Star支持一下
+## 🤝 贡献
+
+欢迎提交 Issue 和 Pull Request！
+
+---
+
+## 📄 许可证
+
+本项目基于 [Apache-2.0](LICENSE) 许可证开源。
+
+---
+
+## 🔗 相关链接
+
+- [HarmonyOS开发文档](https://developer.harmonyos.com/)
+- [ArkTS语法指南](https://developer.harmonyos.com/cn/docs/documentation/doc-guides/arkts-basic-syntax-overview-0000001531611153)
+- [项目主页](https://github.com/kumaleap/ArkSwipeDeck)
+
+---
+
+⭐ 如果这个项目对你有帮助，请点个 Star 支持一下！
