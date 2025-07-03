@@ -4,6 +4,10 @@
 [![HarmonyOS](https://img.shields.io/badge/HarmonyOS-4.0%2B-orange.svg)](https://developer.harmonyos.com/)
 [![ArkTS](https://img.shields.io/badge/ArkTS-Latest-green.svg)](https://developer.harmonyos.com/cn/docs/documentation/doc-guides/arkts-get-started-0000001504769321)
 
+> [English Version](./README.en.md)
+
+---
+
 > 纯净的鸿蒙ArkTS卡片堆叠滑动组件，提供 Tinder 风格的滑动交互、流畅动画和完整的事件回调体系。
 
 ---
