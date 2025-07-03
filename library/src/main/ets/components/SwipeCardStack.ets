@@ -1,117 +1,105 @@
 /**
- * SwipeCardStack 卡片堆叠滑动容器组件
- * 
- * 提供Tinder风格的卡片滑动交互，支持自定义内容Builder
- * 
+ * 滑动卡片堆叠组件
+ *
+ * 实现类似Tinder的滑动卡片效果
+ *
  * @since 1.0.0
  * @syscap SystemCapability.ArkUI.ArkUI.Full
  */
 
-import type { 
-  CardData, 
-  SwipeCardStackConfig, 
-  SwipeCardStackConfigUpdate,
-  SwipeCardStackCallbacks,
-  SwipeCardStackController,
-  SwipeEvent,
-  Position,
-  AnimationConfig,
-  ContainerSize
+import hilog from '@ohos.hilog';
+import type {
+  CardData,
+  SwipeConfig,
+  GestureState,
+  AnimationParams,
+  CardInfo,
+  OnCardSwipedCallback,
+  OnCardClickedCallback,
+  OnStackNearEmptyCallback,
+  OnStackEmptyCallback,
+  SwipeEventHandler
 } from '../types/SwipeCardTypes';
 import { SwipeDirection, CardState } from '../types/SwipeCardTypes';
-import { DEFAULT_SWIPE_CARD_STACK_CONFIG, PERFORMANCE_CONSTANTS } from '../constants/DefaultConfigs';
+import { mergeSwipeConfig, LayoutConstants } from '../constants/DefaultConfigs';
 import { AnimationUtils } from '../utils/AnimationUtils';
 import { GestureUtils } from '../utils/GestureUtils';
-import type { GestureData, VelocityData } from '../utils/GestureUtils';
-import { SwipeCardStackControllerImpl, SwipeCardStackRefImpl } from './SwipeCardStackControllerImpl';
-import type { SwipeCardStackRef } from './SwipeCardStackControllerImpl';
-import { SwipeCardStackAdapter } from './SwipeCardStackAdapter';
+
+// 日志标签
+const TAG: string = 'ArkSwipeDeck';
 
 /**
- * 卡片状态数据
- */
-@Observed
-class CardStateData {
-  public translateX: number = 0;
-  public translateY: number = 0;
-  public rotation: number = 0;
-  public scale: number = 1;
-  public opacity: number = 1;
-  public zIndex: number = 0;
-  public state: CardState = CardState.IDLE;
-}
-
-/**
- * SwipeCardStack组件
- * 符合arktsV2.mdc规范：struct不能实现接口，使用适配器模式
+ * 滑动卡片堆叠组件
  */
 @Component
 export struct SwipeCardStack {
-  /** 卡片数据源 */
-  @Prop cardDataList: CardData[] = [];
-  /** 组件配置 */
-  @Prop config: SwipeCardStackConfig = DEFAULT_SWIPE_CARD_STACK_CONFIG;
-  /** 事件回调 */
-  callbacks: SwipeCardStackCallbacks = {};
-  /** 控制器回调 */
-  controller?: (controller: SwipeCardStackController) => void;
-  /** 内部卡片数据 */
-  @State private internalCardList: CardData[] = [];
-  /** 卡片状态映射 */
-  @State private cardStates: Map<string, CardStateData> = new Map();
-  /** 当前拖拽的卡片 */
-  @State private draggingCard: CardData | null = null;
-  /** 手势数据 */
-  private gestureData: GestureData | null = null;
-  /** 容器尺寸 */
-  @State private containerSize: ContainerSize = { width: 0, height: 0 };
-  /** 组件控制器 */
-  private readonly internalController: SwipeCardStackController = this.createController();
+  /** 卡片数据列表 */
+  @Prop private cardDataList: CardData[] = [];
+  /** 滑动配置 */
+  @Prop private swipeConfig: SwipeConfig = {};
+  /** 事件监听器 */
+  @Prop private eventHandler: SwipeEventHandler = {};
   /** 卡片内容构建器 */
-  @BuilderParam cardContentBuilder: (card: CardData, index: number) => void = this.defaultCardBuilder;
+  @BuilderParam private cardBuilder?: (data: CardData, index: number) => void;
+  /** 当前卡片索引 */
+  @State private currentIndex: number = 0;
+  /** 卡片状态 */
+  @State private cardState: CardState = CardState.IDLE;
+  /** 顶层卡片动画参数 */
+  @State private topCardAnimation: AnimationParams = {
+    translateX: 0,
+    translateY: 0,
+    rotation: 0,
+    scale: 1,
+    opacity: 1
+  };
+  /** 组件宽度 */
+  @State private componentWidth: number = 0;
+  /** 组件高度 */
+  @State private componentHeight: number = 0;
+  /** 合并后的配置 */
+  @State private finalConfig: Required<SwipeConfig> = mergeSwipeConfig({});
+  /** 当前手势状态 */
+  private currentGestureState: GestureState | null = null;
 
-  /**
-   * 组件即将出现时的生命周期
-   */
   aboutToAppear(): void {
-    // ✅ 使用循环替代扩展运算符 (符合arkts-no-spread规范)
-    this.internalCardList = [];
+    // 初始化配置
+    this.finalConfig = mergeSwipeConfig(this.swipeConfig);
+    hilog.debug(0x0000, TAG, 'SwipeCardStack初始化配置: %{public}s', JSON.stringify(this.finalConfig));
+    hilog.debug(0x0000, TAG, 'cardDataList长度: %{public}d', this.cardDataList.length);
     for (let i = 0; i < this.cardDataList.length; i++) {
-      this.internalCardList.push(this.cardDataList[i]);
-    }
-    this.initializeCardStates();
-    this.updateStackLayout();
-    
-    // 调用controller回调
-    if (this.controller) {
-      this.controller(this.internalController);
+      hilog.debug(0x0000, TAG, '卡片 %{public}d: id=%{public}s', i, this.cardDataList[i].id);
     }
   }
 
-  /**
-   * 组件即将消失时的生命周期
-   */
-  aboutToDisappear(): void {
-    this.cleanup();
-  }
-
-  /**
-   * 构建组件UI
-   */
   build(): void {
     Stack() {
-      ForEach(
-        this.internalGetVisibleCards(),
-        (card: CardData) => {
-          this.buildCard(card);
-        },
-        (card: CardData): string => card.id
-      )
+      if (this.componentWidth > 0 && this.componentHeight > 0) {
+        ForEach(
+          this.getVisibleCards(),
+          (cardInfo: CardInfo) => {
+            this.buildCard(cardInfo.data, cardInfo.index, cardInfo.stackIndex);
+          },
+          (cardInfo: CardInfo): string => cardInfo.data.id
+        )
+      } else {
+        // 占位符，等待组件尺寸初始化
+        Text('加载中...')
+          .fontSize(16)
+          .fontColor('#999999')
+      }
     }
     .width('100%')
     .height('100%')
+    .hitTestBehavior(HitTestMode.Transparent) // 让手势事件穿透到子组件
     .onAreaChange((oldValue: Area, newValue: Area): void => {
-      this.onContainerSizeChange(newValue);
+      const newWidth: number = Number(newValue.width);
+      const newHeight: number = Number(newValue.height);
+      if (newWidth > 0 && newHeight > 0) {
+        this.componentWidth = newWidth;
+        this.componentHeight = newHeight;
+        hilog.debug(0x0000, TAG, '组件尺寸更新: %{public}d x %{public}d', this.componentWidth, this.componentHeight);
+      }
     })
   }
 
@@ -119,524 +107,540 @@ export struct SwipeCardStack {
    * 构建单个卡片
    */
   @Builder
-  private buildCard(card: CardData): void {
-    if (this.cardStates.has(card.id)) {
-      Stack() {
-        this.cardContentBuilder(card, card.index)
+  private buildCard(data: CardData, dataIndex: number, stackIndex: number): void {
+    Stack() {
+      if (this.cardBuilder) {
+        this.cardBuilder(data, dataIndex);
+      } else {
+        this.buildDefaultCard(data);
       }
-      .width('100%')
-      .height('100%')
-      .translate({ 
-        x: this.cardStates.get(card.id)?.translateX ?? 0, 
-        y: this.cardStates.get(card.id)?.translateY ?? 0
-      })
-      .rotate({ 
-        angle: this.cardStates.get(card.id)?.rotation ?? 0,
-        centerX: '50%',
-        centerY: '50%'
-      })
-      .scale({ 
-        x: this.cardStates.get(card.id)?.scale ?? 1, 
-        y: this.cardStates.get(card.id)?.scale ?? 1
-      })
-      .opacity(this.cardStates.get(card.id)?.opacity ?? 1)
-      .zIndex(this.cardStates.get(card.id)?.zIndex ?? 0)
-      .gesture(
-        PanGesture()
-          .onActionStart((event: GestureEvent): void => {
-            this.handleDragStart(card, event);
-          })
-          .onActionUpdate((event: GestureEvent): void => {
-            this.handleDragUpdate(card, event);
-          })
-          .onActionEnd((event: GestureEvent): void => {
-            this.handleDragEnd(card, event);
-          })
-      )
     }
+    .width(this.componentWidth * LayoutConstants.DEFAULT_CARD_WIDTH_RATIO)
+    .height(this.componentHeight * LayoutConstants.DEFAULT_CARD_HEIGHT_RATIO)
+    .borderRadius(LayoutConstants.CARD_BORDER_RADIUS)
+    .shadow({
+      radius: LayoutConstants.CARD_SHADOW_BLUR,
+      color: Color.Black,
+      offsetX: LayoutConstants.CARD_SHADOW_OFFSET,
+      offsetY: LayoutConstants.CARD_SHADOW_OFFSET
+    })
+    .translate(this.getCardTranslate(stackIndex, dataIndex))
+    .scale(this.getCardScale(stackIndex, dataIndex))
+    .rotate(this.getCardRotation(stackIndex, dataIndex))
+    .opacity(this.getCardOpacity(stackIndex, dataIndex))
+    .zIndex(this.finalConfig.maxVisibleCards - stackIndex)
+    .gesture(
+      // 给所有卡片添加手势，但在事件中判断是否响应
+      PanGesture({ fingers: 1, direction: PanDirection.All, distance: 1 })
+        .onActionStart((event: GestureEvent): void => {
+          hilog.debug(0x0000, TAG, '手势触发: cardId=%{public}s, dataIndex=%{public}d, stackIndex=%{public}d, currentIndex=%{public}d', 
+            data.id, dataIndex, stackIndex, this.currentIndex);
+          
+          // 只有当前索引对应的卡片才响应手势
+          if (dataIndex !== this.currentIndex) {
+            hilog.debug(0x0000, TAG, '非当前卡片，忽略手势: dataIndex=%{public}d, currentIndex=%{public}d', dataIndex, this.currentIndex);
+            return;
+          }
+          
+          hilog.debug(0x0000, TAG, '当前卡片拖拽开始: cardId=%{public}s', data.id);
+          this.cardState = CardState.DRAGGING;
+        })
+        .onActionUpdate((event: GestureEvent): void => {
+          // 只有当前索引对应的卡片才响应手势
+          if (dataIndex !== this.currentIndex) {
+            return;
+          }
+          
+          // 使用PanGesture的offsetX和offsetY获取相对位移
+          const deltaX: number = event.offsetX;
+          const deltaY: number = event.offsetY;
+          hilog.debug(0x0000, TAG, '拖拽更新: deltaX=%{public}d, deltaY=%{public}d', deltaX, deltaY);
+          
+          // 直接更新顶层卡片动画
+          const cardWidth: number = this.componentWidth * LayoutConstants.DEFAULT_CARD_WIDTH_RATIO;
+          this.topCardAnimation = {
+            translateX: deltaX,
+            translateY: deltaY,
+            rotation: deltaX / cardWidth * this.finalConfig.rotationAngle,
+            scale: 1,
+            opacity: 1
+          };
+        })
+        .onActionEnd((event: GestureEvent): void => {
+          hilog.debug(0x0000, TAG, '手势结束: cardId=%{public}s, dataIndex=%{public}d, currentIndex=%{public}d', data.id, dataIndex, this.currentIndex);
+          
+          // 只有当前索引对应的卡片才响应手势
+          if (dataIndex !== this.currentIndex) {
+            hilog.debug(0x0000, TAG, '非当前卡片，忽略手势结束: dataIndex=%{public}d', dataIndex);
+            return;
+          }
+          
+          const deltaX: number = event.offsetX;
+          const deltaY: number = event.offsetY;
+          hilog.debug(0x0000, TAG, '当前卡片拖拽结束: cardId=%{public}s, deltaX=%{public}d, deltaY=%{public}d', data.id, deltaX, deltaY);
+          
+          // 判断是否达到滑动阈值
+          const distance: number = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+          hilog.debug(0x0000, TAG, '拖拽距离: %{public}d, 阈值: %{public}d', distance, this.finalConfig.swipeThreshold);
+          
+          if (distance >= this.finalConfig.swipeThreshold) {
+            // 达到阈值，执行滑出动画
+            hilog.debug(0x0000, TAG, '触发滑出动画');
+            this.performSwipeOut(deltaX, deltaY, data, dataIndex);
+          } else {
+            // 未达到阈值，弹回
+            hilog.debug(0x0000, TAG, '距离不足，执行弹回');
+            this.topCardAnimation = {
+              translateX: 0,
+              translateY: 0,
+              rotation: 0,
+              scale: 1,
+              opacity: 1
+            };
+            this.cardState = CardState.IDLE;
+          }
+        })
+    )
   }
 
   /**
-   * 默认卡片构建器
+   * 构建默认卡片内容
    */
   @Builder
-  private defaultCardBuilder(card: CardData, index: number): void {
-    Text(`Card ${index}`)
-      .fontSize(24)
-      .fontColor(Color.Black)
-      .width('100%')
-      .height('100%')
-      .textAlign(TextAlign.Center)
-      .backgroundColor(Color.White)
-      .borderRadius(12)
-      .border({ width: 1, color: Color.Gray })
+  private buildDefaultCard(data: CardData): void {
+    Column() {
+      Text(data.id)
+        .fontSize(24)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(Color.White)
+    }
+    .width('100%')
+    .height('100%')
+    .justifyContent(FlexAlign.Center)
+    .backgroundColor(Color.Blue)
   }
 
   /**
-   * 开始拖拽处理
+   * 获取可见卡片列表
    */
-  private handleDragStart(card: CardData, event: GestureEvent): void {
-    if (card !== this.internalGetTopCard()) {
-      return;
+  private getVisibleCards(): CardInfo[] {
+    const visibleCards: CardInfo[] = [];
+    const maxVisible: number = Math.min(this.finalConfig.maxVisibleCards, this.cardDataList.length);
+
+    hilog.debug(0x0000, TAG, 'getVisibleCards: maxVisible=%{public}d, cardDataList.length=%{public}d, currentIndex=%{public}d', 
+      maxVisible, this.cardDataList.length, this.currentIndex);
+
+    for (let i = 0; i < maxVisible; i++) {
+      const dataIndex: number = this.currentIndex + i;
+      if (dataIndex < this.cardDataList.length) {
+        const cardInfo: CardInfo = {
+          data: this.cardDataList[dataIndex],
+          index: dataIndex,
+          stackIndex: i
+        };
+        visibleCards.push(cardInfo);
+        hilog.debug(0x0000, TAG, '添加可见卡片: id=%{public}s, dataIndex=%{public}d, stackIndex=%{public}d', 
+          cardInfo.data.id, cardInfo.index, cardInfo.stackIndex);
+      }
     }
 
-    this.draggingCard = card;
-    const cardState: CardStateData | undefined = this.cardStates.get(card.id);
-    if (cardState) {
-      cardState.state = CardState.DRAGGING;
-    }
+    hilog.debug(0x0000, TAG, 'getVisibleCards返回: %{public}d张卡片', visibleCards.length);
+    return visibleCards;
+  }
 
-    const startPos: Position = { x: event.fingerList[0].localX, y: event.fingerList[0].localY };
-    const currentPos: Position = { x: event.fingerList[0].localX, y: event.fingerList[0].localY };
-    this.gestureData = {
-      startPosition: startPos,
-      currentPosition: currentPos,
-      startTime: Date.now(),
-      currentTime: Date.now()
+  /**
+   * 获取卡片位移
+   */
+  private getCardTranslate(stackIndex: number, dataIndex: number): TranslateOptions {
+    if (dataIndex === this.currentIndex) {
+      hilog.debug(0x0000, TAG, 'getCardTranslate: 当前卡片 dataIndex=%{public}d, translateX=%{public}d, translateY=%{public}d', 
+        dataIndex, this.topCardAnimation.translateX, this.topCardAnimation.translateY);
+      const translateOptions: TranslateOptions = {
+        x: this.topCardAnimation.translateX,
+        y: this.topCardAnimation.translateY,
+        z: 0
+      };
+      return translateOptions;
+    } else {
+      const stackAnimation: AnimationParams = AnimationUtils.calculateStackAnimation(
+        stackIndex,
+        this.finalConfig.scaleRatio,
+        this.finalConfig.cardSpacing
+      );
+      hilog.debug(0x0000, TAG, 'getCardTranslate: 背景卡片 stackIndex=%{public}d, translateX=%{public}d, translateY=%{public}d', 
+        stackIndex, stackAnimation.translateX, stackAnimation.translateY);
+      const translateOptions: TranslateOptions = {
+        x: stackAnimation.translateX,
+        y: stackAnimation.translateY,
+        z: 0
+      };
+      return translateOptions;
+    }
+  }
+
+  /**
+   * 获取卡片缩放
+   */
+  private getCardScale(stackIndex: number, dataIndex: number): ScaleOptions {
+    if (dataIndex === this.currentIndex) {
+      const scaleOptions: ScaleOptions = {
+        x: this.topCardAnimation.scale,
+        y: this.topCardAnimation.scale,
+        z: 1
+      };
+      return scaleOptions;
+    } else {
+      const stackAnimation: AnimationParams = AnimationUtils.calculateStackAnimation(
+        stackIndex,
+        this.finalConfig.scaleRatio,
+        this.finalConfig.cardSpacing
+      );
+      const scaleOptions: ScaleOptions = {
+        x: stackAnimation.scale,
+        y: stackAnimation.scale,
+        z: 1
+      };
+      return scaleOptions;
+    }
+  }
+
+  /**
+   * 获取卡片旋转
+   */
+  private getCardRotation(stackIndex: number, dataIndex: number): RotateOptions {
+    if (dataIndex === this.currentIndex) {
+      const rotateOptions: RotateOptions = {
+        z: this.topCardAnimation.rotation,
+        angle: this.topCardAnimation.rotation
+      };
+      return rotateOptions;
+    } else {
+      const rotateOptions: RotateOptions = {
+        z: 0,
+        angle: 0
+      };
+      return rotateOptions;
+    }
+  }
+
+  /**
+   * 获取卡片透明度
+   */
+  private getCardOpacity(stackIndex: number, dataIndex: number): number {
+    if (dataIndex === this.currentIndex) {
+      return this.topCardAnimation.opacity;
+    } else {
+      return 1;
+    }
+  }
+
+  /**
+   * 获取卡片手势
+   */
+  private getCardGesture(data: CardData, dataIndex: number, stackIndex: number): GestureGroupInterface {
+    hilog.debug(0x0000, TAG, 'getCardGesture: cardId=%{public}s, stackIndex=%{public}d, 是否顶层=%{public}s', 
+      data.id, stackIndex, stackIndex === 0 ? 'true' : 'false');
+    
+    // 临时：为所有卡片创建手势来测试
+    return this.createCardGesture(data, dataIndex);
+  }
+
+  /**
+   * 执行滑出动画
+   */
+  private performSwipeOut(deltaX: number, deltaY: number, data: CardData, dataIndex: number): void {
+    this.cardState = CardState.SWIPING;
+    
+    // 判断滑动方向
+    const direction: SwipeDirection = Math.abs(deltaX) > Math.abs(deltaY) 
+      ? (deltaX > 0 ? SwipeDirection.RIGHT : SwipeDirection.LEFT)
+      : (deltaY > 0 ? SwipeDirection.DOWN : SwipeDirection.UP);
+    
+    hilog.debug(0x0000, TAG, '滑动方向: %{public}s', direction);
+    
+    // 计算滑出的最终位置（移动到屏幕外）
+    const screenWidth: number = this.componentWidth;
+    const finalX: number = deltaX > 0 ? screenWidth : -screenWidth;
+    const finalY: number = deltaY * 2; // 保持Y轴方向但加大幅度
+    
+    // 计算最终旋转角度
+    const cardWidth: number = this.componentWidth * LayoutConstants.DEFAULT_CARD_WIDTH_RATIO;
+    const finalRotation: number = finalX / cardWidth * this.finalConfig.rotationAngle * 2;
+    
+    hilog.debug(0x0000, TAG, '滑出目标: finalX=%{public}d, finalY=%{public}d, rotation=%{public}d', 
+      finalX, finalY, finalRotation);
+    
+    // 执行滑出动画
+    animateTo({
+      duration: this.finalConfig.animationDuration,
+      curve: Curve.EaseOut,
+      onFinish: (): void => {
+        hilog.debug(0x0000, TAG, '滑出动画完成，切换到下一张卡片');
+        this.onSwipeComplete(data, dataIndex, direction);
+      }
+    }, (): void => {
+      this.topCardAnimation = {
+        translateX: finalX,
+        translateY: finalY,
+        rotation: finalRotation,
+        scale: 0.8,
+        opacity: 0.3
+      };
+    });
+  }
+
+  /**
+   * 滑动完成处理
+   */
+  private onSwipeComplete(data: CardData, dataIndex: number, direction: SwipeDirection): void {
+    // 重置顶层卡片动画
+    this.topCardAnimation = {
+      translateX: 0,
+      translateY: 0,
+      rotation: 0,
+      scale: 1,
+      opacity: 1
     };
 
-    this.triggerCallback('onDragStart', card, SwipeDirection.LEFT, 0, 0);
+    // 移动到下一张卡片
+    this.currentIndex++;
+    hilog.debug(0x0000, TAG, '切换到下一张卡片，新的currentIndex: %{public}d', this.currentIndex);
+    
+    // 输出新的顶层卡片信息
+    if (this.currentIndex < this.cardDataList.length) {
+      const newTopCard: CardData = this.cardDataList[this.currentIndex];
+      hilog.debug(0x0000, TAG, '新顶层卡片: id=%{public}s, currentIndex=%{public}d', newTopCard.id, this.currentIndex);
+    } else {
+      hilog.debug(0x0000, TAG, '所有卡片已滑完');
+    }
+
+    // 触发滑动事件
+    if (this.eventHandler.onCardSwiped) {
+      hilog.debug(0x0000, TAG, '触发onCardSwiped回调');
+      this.eventHandler.onCardSwiped(direction, data, dataIndex);
+    }
+
+    // 检查是否接近栈底
+    const remainingCount: number = this.cardDataList.length - this.currentIndex;
+    if (remainingCount <= this.finalConfig.minStackSize && this.eventHandler.onStackNearEmpty) {
+      hilog.debug(0x0000, TAG, '栈接近空了，剩余: %{public}d', remainingCount);
+      this.eventHandler.onStackNearEmpty(remainingCount);
+    }
+
+    // 检查是否栈空
+    if (remainingCount === 0 && this.eventHandler.onStackEmpty) {
+      hilog.debug(0x0000, TAG, '栈空了');
+      this.eventHandler.onStackEmpty();
+    }
+
+    this.cardState = CardState.IDLE;
+  }
+
+  /**
+   * 创建卡片手势
+   */
+  private createCardGesture(data: CardData, dataIndex: number): GestureGroupInterface {
+    hilog.debug(0x0000, TAG, 'createCardGesture被调用: cardId=%{public}s, dataIndex=%{public}d', data.id, dataIndex);
+    
+    const dragGesture: PanGestureInterface = GestureUtils.createDragGesture(
+      (x: number, y: number): void => {
+        this.handleDragStart(x, y);
+      },
+      (state: GestureState): void => {
+        this.handleDragUpdate(state);
+      },
+      (state: GestureState): void => {
+        this.handleDragEnd(state, data, dataIndex);
+      }
+    );
+
+    const tapGesture: TapGestureInterface = GestureUtils.createTapGesture((): void => {
+      this.onCardClick(data, dataIndex);
+    });
+
+    hilog.debug(0x0000, TAG, 'createCardGesture完成: 手势已创建');
+
+    return GestureGroup(GestureMode.Exclusive, dragGesture, tapGesture);
+  }
+
+  /**
+   * 拖拽开始处理
+   */
+  private handleDragStart(x: number, y: number): void {
+    hilog.debug(0x0000, TAG, '拖拽开始: %{public}f, %{public}f', x, y);
+    this.cardState = CardState.DRAGGING;
   }
 
   /**
    * 拖拽更新处理
    */
-  private handleDragUpdate(card: CardData, event: GestureEvent): void {
-    if (card !== this.draggingCard || !this.gestureData) {
+  private handleDragUpdate(state: GestureState): void {
+    if (!GestureUtils.isValidDrag(state)) {
+      hilog.debug(0x0000, TAG, '拖拽无效，距离太小: %{public}f', Math.sqrt(state.deltaX * state.deltaX + state.deltaY * state.deltaY));
       return;
     }
 
-    const currentPosition: Position = { 
-      x: event.fingerList[0].localX, 
-      y: event.fingerList[0].localY 
-    };
+    hilog.debug(0x0000, TAG, '拖拽更新: deltaX=%{public}f, deltaY=%{public}f, 组件尺寸=%{public}dx%{public}d', 
+      state.deltaX, state.deltaY, this.componentWidth, this.componentHeight);
+    this.currentGestureState = state;
+    const cardWidth: number = this.componentWidth * LayoutConstants.DEFAULT_CARD_WIDTH_RATIO;
 
-    this.gestureData = {
-      startPosition: this.gestureData.startPosition,
-      currentPosition: currentPosition,
-      startTime: this.gestureData.startTime,
-      currentTime: Date.now()
-    };
-
-    this.updateCardPosition(card, currentPosition);
-    
-    const progress: number = this.calculateDragProgress();
-    const direction: SwipeDirection = GestureUtils.getSwipeDirection(
-      this.gestureData.startPosition, 
-      currentPosition
+    const dragAnimation: AnimationParams = AnimationUtils.calculateDragAnimation(
+      state.deltaX,
+      state.deltaY,
+      cardWidth,
+      this.finalConfig.rotationAngle
     );
 
-    this.triggerCallback('onDragUpdate', card, direction, progress, 0);
+    this.topCardAnimation = dragAnimation;
   }
 
   /**
    * 拖拽结束处理
    */
-  private handleDragEnd(card: CardData, event: GestureEvent): void {
-    if (card !== this.draggingCard || !this.gestureData) {
-      return;
-    }
+  private handleDragEnd(state: GestureState, data: CardData, dataIndex: number): void {
+    hilog.debug(0x0000, TAG, '拖拽结束: deltaX=%{public}f, deltaY=%{public}f, 阈值=%{public}d', 
+      state.deltaX, state.deltaY, this.finalConfig.swipeThreshold);
+    this.currentGestureState = null;
 
-    const velocity: VelocityData = GestureUtils.calculateVelocity(this.gestureData);
-    const shouldSwipe: boolean = GestureUtils.shouldTriggerSwipe(this.gestureData, this.config.swipe);
-    const direction: SwipeDirection = GestureUtils.getSwipeDirection(
-      this.gestureData.startPosition, 
-      this.gestureData.currentPosition
-    );
-
-    if (shouldSwipe) {
-      this.performSwipe(card, direction, true);
+    if (GestureUtils.shouldTriggerSwipe(state, this.finalConfig.swipeThreshold)) {
+      hilog.debug(0x0000, TAG, '触发滑动');
+      this.performSwipe(state, data, dataIndex);
     } else {
-      this.resetCardPosition(card, true);
+      hilog.debug(0x0000, TAG, '触发弹回');
+      this.performSpringBack();
     }
-
-    this.triggerCallback('onDragEnd', card, direction, 0, velocity.velocity);
-    this.draggingCard = null;
-    this.gestureData = null;
   }
 
   /**
-   * 更新卡片位置
+   * 卡片点击处理
    */
-  private updateCardPosition(card: CardData, currentPosition: Position): void {
-    if (!this.gestureData) {
-      return;
+  private onCardClick(data: CardData, dataIndex: number): void {
+    hilog.debug(0x0000, TAG, '卡片点击: id=%{public}s, 状态=%{public}s', data.id, this.cardState);
+    if (this.cardState === CardState.IDLE && this.eventHandler.onCardClicked) {
+      this.eventHandler.onCardClicked(data, dataIndex);
     }
-
-    const cardState: CardStateData | undefined = this.cardStates.get(card.id);
-    if (!cardState) {
-      return;
-    }
-
-    const delta: Position = GestureUtils.calculateDelta(this.gestureData.startPosition, currentPosition);
-    
-    // 更新位移
-    cardState.translateX = delta.x;
-    cardState.translateY = delta.y;
-
-    // 计算并更新旋转角度
-    cardState.rotation = GestureUtils.calculateRotation(
-      this.gestureData.startPosition,
-      currentPosition,
-      this.config.swipe.maxRotation,
-      this.containerSize.width
-    );
-
-    // 计算并更新透明度
-    const progress: number = this.calculateDragProgress();
-    cardState.opacity = GestureUtils.calculateOpacity(progress);
-
-    // 更新下层卡片
-    this.updateBackgroundCards(progress);
   }
 
   /**
    * 执行滑动动画
    */
-  private async performSwipe(card: CardData, direction: SwipeDirection, animated: boolean): Promise<void> {
-    const cardState: CardStateData | undefined = this.cardStates.get(card.id);
-    if (!cardState) {
-      return;
-    }
+  private performSwipe(state: GestureState, data: CardData, dataIndex: number): void {
+    this.cardState = CardState.SWIPING;
+    const direction: SwipeDirection = GestureUtils.getSwipeDirection(state);
 
-    cardState.state = CardState.ANIMATING;
+    const cardWidth: number = this.componentWidth * LayoutConstants.DEFAULT_CARD_WIDTH_RATIO;
+    const cardHeight: number = this.componentHeight * LayoutConstants.DEFAULT_CARD_HEIGHT_RATIO;
 
-    const exitPosition: Position = this.calculateExitPosition(direction);
-    const animationConfig: AnimationConfig = this.config.animation;
-
-    if (animated) {
-      const animateParam: AnimateParam = AnimationUtils.createAnimateParam(animationConfig);
-      
-      animateTo(animateParam, (): void => {
-        cardState.translateX = exitPosition.x;
-        cardState.translateY = exitPosition.y;
-        cardState.opacity = 0;
-      });
-
-      await this.delay(animationConfig.duration);
-    } else {
-      cardState.translateX = exitPosition.x;
-      cardState.translateY = exitPosition.y;
-      cardState.opacity = 0;
-    }
-
-    // 移除卡片并更新堆叠
-    this.removeCard(card);
-    this.triggerCallback('onCardSwiped', card, direction, 1, 0);
-    
-    if (this.internalCardList.length === 0) {
-      this.callbacks.onStackEmpty?.();
-    } else {
-      this.updateStackLayout();
-    }
-  }
-
-  /**
-   * 重置卡片位置
-   */
-  private async resetCardPosition(card: CardData, animated: boolean): Promise<void> {
-    const cardState: CardStateData | undefined = this.cardStates.get(card.id);
-    if (!cardState) {
-      return;
-    }
-
-    cardState.state = CardState.ANIMATING;
-
-    if (animated) {
-      const animateParam: AnimateParam = AnimationUtils.createAnimateParam(this.config.animation);
-      
-      animateTo(animateParam, (): void => {
-        cardState.translateX = 0;
-        cardState.translateY = 0;
-        cardState.rotation = 0;
-        cardState.opacity = 1;
-      });
-
-      await this.delay(this.config.animation.duration);
-    } else {
-      cardState.translateX = 0;
-      cardState.translateY = 0;
-      cardState.rotation = 0;
-      cardState.opacity = 1;
-    }
-
-    cardState.state = CardState.IDLE;
-    this.triggerCallback('onCardBounced', card, SwipeDirection.LEFT, 0, 0);
-    this.updateStackLayout();
-  }
-
-  /**
-   * 初始化卡片状态
-   */
-  private initializeCardStates(): void {
-    this.cardStates.clear();
-    for (let i = 0; i < this.internalCardList.length; i++) {
-      const card: CardData = this.internalCardList[i];
-      this.cardStates.set(card.id, new CardStateData());
-    }
-  }
-
-  /**
-   * 更新堆叠布局
-   */
-  private updateStackLayout(): void {
-    const visibleCards: CardData[] = this.internalGetVisibleCards();
-    
-    for (let i = 0; i < visibleCards.length; i++) {
-      const card: CardData = visibleCards[i];
-      const cardState: CardStateData | undefined = this.cardStates.get(card.id);
-      
-      if (cardState && cardState.state === CardState.IDLE) {
-        // 设置z-index
-        cardState.zIndex = visibleCards.length - i;
-        
-        // 设置偏移和缩放
-        const offset: number = i * this.config.stack.cardSpacing;
-        cardState.translateY = offset;
-        cardState.scale = 1 - (i * this.config.stack.scaleStep);
-        cardState.opacity = 1 - (i * this.config.stack.opacityStep);
-      }
-    }
-
-    this.callbacks.onStackUpdate?.(visibleCards);
-  }
-
-  /**
-   * 更新背景卡片
-   */
-  private updateBackgroundCards(progress: number): void {
-    const visibleCards: CardData[] = this.internalGetVisibleCards();
-    
-    for (let i = 1; i < Math.min(visibleCards.length, 2); i++) {
-      const card: CardData = visibleCards[i];
-      const cardState: CardStateData | undefined = this.cardStates.get(card.id);
-      
-      if (cardState) {
-        // 随着顶部卡片滑动，下层卡片逐渐前移
-        const baseOffset: number = i * this.config.stack.cardSpacing;
-        const animatedOffset: number = baseOffset * (1 - progress * 0.5);
-        cardState.translateY = animatedOffset;
-        
-        const baseScale: number = 1 - (i * this.config.stack.scaleStep);
-        const animatedScale: number = baseScale + (progress * this.config.stack.scaleStep * 0.5);
-        cardState.scale = Math.min(1, animatedScale);
-      }
-    }
-  }
-
-  /**
-   * 获取可见卡片列表 - 内部实现
-   */
-  private internalGetVisibleCards(): CardData[] {
-    const maxVisible: number = Math.min(
-      this.config.stack.visibleCount, 
-      PERFORMANCE_CONSTANTS.MAX_VISIBLE_COUNT,
-      this.internalCardList.length
-    );
-    return this.internalCardList.slice(0, maxVisible);
-  }
-
-  /**
-   * 获取顶部卡片 - 内部实现
-   */
-  private internalGetTopCard(): CardData | null {
-    return this.internalCardList.length > 0 ? this.internalCardList[0] : null;
-  }
-
-
-
-  /**
-   * 移除卡片
-   */
-  private removeCard(card: CardData): void {
-    const index: number = this.internalCardList.findIndex((c: CardData): boolean => c.id === card.id);
-    if (index !== -1) {
-      this.internalCardList.splice(index, 1);
-      this.cardStates.delete(card.id);
-      
-      if (this.config.enableLoop && this.internalCardList.length > 0) {
-        // 循环模式：将卡片添加到末尾
-        const newCard: CardData = {
-          id: `${card.id}_${Date.now()}`,
-          index: this.internalCardList.length,
-          visible: true,
-          data: card.data
-        };
-        this.internalCardList.push(newCard);
-        this.cardStates.set(newCard.id, new CardStateData());
-      }
-    }
-  }
-
-  /**
-   * 计算拖拽进度
-   */
-  private calculateDragProgress(): number {
-    if (!this.gestureData) {
-      return 0;
-    }
-    
-    return GestureUtils.calculateSwipeProgress(
-      this.gestureData.startPosition,
-      this.gestureData.currentPosition,
-      this.config.swipe.threshold
-    );
-  }
-
-  /**
-   * 计算退出位置
-   */
-  private calculateExitPosition(direction: SwipeDirection): Position {
-    const multiplier: number = 1.5;
-    
-    switch (direction) {
-      case SwipeDirection.LEFT: {
-        const position: Position = { x: -this.containerSize.width * multiplier, y: 0 };
-        return position;
-      }
-      case SwipeDirection.RIGHT: {
-        const position: Position = { x: this.containerSize.width * multiplier, y: 0 };
-        return position;
-      }
-      case SwipeDirection.UP: {
-        const position: Position = { x: 0, y: -this.containerSize.height * multiplier };
-        return position;
-      }
-      case SwipeDirection.DOWN: {
-        const position: Position = { x: 0, y: this.containerSize.height * multiplier };
-        return position;
-      }
-      default: {
-        const position: Position = { x: 0, y: 0 };
-        return position;
-      }
-    }
-  }
-
-  /**
-   * 触发事件回调
-   */
-  private triggerCallback(
-    callbackName: string, 
-    card: CardData, 
-    direction: SwipeDirection, 
-    progress: number, 
-    velocity: number
-  ): void {
-    const defaultPosition: Position = { x: 0, y: 0 };
-    const position: Position = this.gestureData?.currentPosition ?? defaultPosition;
-    const event: SwipeEvent = {
-      card,
+    const swipeAnimation: AnimationParams = AnimationUtils.createSwipeOutAnimation(
       direction,
-      progress,
-      velocity,
-      position
+      cardWidth,
+      cardHeight,
+      this.finalConfig.rotationAngle
+    );
+
+    const duration: number = AnimationUtils.calculateAnimationDuration(
+      state.velocity,
+      this.finalConfig.animationDuration
+    );
+
+    const animationOptions: AnimateParam = AnimationUtils.createAnimationOptions(duration);
+    animationOptions.onFinish = (): void => {
+      this.onSwipeComplete(data, dataIndex, direction);
     };
 
-    switch (callbackName) {
-      case 'onDragStart':
-        this.callbacks.onDragStart?.(event);
-        break;
-      case 'onDragUpdate':
-        this.callbacks.onDragUpdate?.(event);
-        break;
-      case 'onDragEnd':
-        this.callbacks.onDragEnd?.(event);
-        break;
-      case 'onCardSwiped':
-        this.callbacks.onCardSwiped?.(event);
-        break;
-      case 'onCardBounced':
-        this.callbacks.onCardBounced?.(event);
-        break;
-    }
-  }
-
-  /**
-   * 容器尺寸变化处理
-   */
-  private onContainerSizeChange(newValue: Area): void {
-    if (newValue.width && newValue.height) {
-      const newSize: ContainerSize = {
-        width: Number(newValue.width),
-        height: Number(newValue.height)
-      };
-      this.containerSize = newSize;
-    }
-  }
-
-  /**
-   * 延迟函数
-   */
-  private async delay(ms: number): Promise<void> {
-    return new Promise<void>((resolve: () => void): void => {
-      setTimeout(resolve, ms);
+    animateTo(animationOptions, (): void => {
+      this.topCardAnimation = swipeAnimation;
     });
   }
 
   /**
-   * 创建控制器
-   * 符合arktsV2.mdc规范：struct不能实现接口，使用适配器模式
+   * 执行弹回动画
    */
-  private createController(): SwipeCardStackController {
-    // 创建适配器，连接struct和接口
-    const adapter = new SwipeCardStackAdapter(
-      (): CardData | null => this.internalGetTopCard(),
-      (): CardData[] => this.internalGetVisibleCards(),
-      async (card: CardData, direction: SwipeDirection, animated: boolean): Promise<void> => {
-        await this.performSwipe(card, direction, animated);
-      },
-      async (card: CardData, animated: boolean): Promise<void> => {
-        await this.resetCardPosition(card, animated);
-      },
-      (config: SwipeCardStackConfigUpdate): void => {
-        this.internalUpdateConfig(config);
-      },
-      (cards: CardData[]): void => {
-        this.internalReload(cards);
-      }
-    );
-    
-    // 创建组件引用实现类实例
-    const swipeStackRef: SwipeCardStackRef = new SwipeCardStackRefImpl(adapter);
-    
-    // 创建控制器实现类实例
-    return new SwipeCardStackControllerImpl(swipeStackRef);
-  }
-
-  /**
-   * 内部更新配置方法
-   */
-  private internalUpdateConfig(newConfig: SwipeCardStackConfigUpdate): void {
-    const newConfiguration: SwipeCardStackConfig = {
-      stack: newConfig.stack ?? this.config.stack,
-      swipe: newConfig.swipe ?? this.config.swipe,
-      animation: newConfig.animation ?? this.config.animation,
-      enableLoop: newConfig.enableLoop ?? this.config.enableLoop,
-      debug: newConfig.debug ?? this.config.debug
-    };
-    this.config = newConfiguration;
-    this.updateStackLayout();
-  }
-
-  /**
-   * 内部重新加载方法
-   */
-  private internalReload(cards: CardData[]): void {
-    this.internalCardList.splice(0);
-    for (let i = 0; i < cards.length; i++) {
-      this.internalCardList.push(cards[i]);
+  private performSpringBack(): void {
+    if (!this.finalConfig.enableSpringBack) {
+      this.cardState = CardState.IDLE;
+      this.topCardAnimation = AnimationUtils.createSpringBackAnimation();
+      return;
     }
-    this.initializeCardStates();
-    this.updateStackLayout();
+
+    this.cardState = CardState.ANIMATING;
+    const springBackAnimation: AnimationParams = AnimationUtils.createSpringBackAnimation();
+
+    const animationOptions: AnimateParam = AnimationUtils.createAnimationOptions(
+      this.finalConfig.animationDuration,
+      AnimationUtils.createSpringCurve()
+    );
+    animationOptions.onFinish = (): void => {
+      this.cardState = CardState.IDLE;
+    };
+
+    animateTo(animationOptions, (): void => {
+      this.topCardAnimation = springBackAnimation;
+    });
+  }
+
+
+
+  /**
+   * 程序化向左滑动
+   */
+  public swipeLeft(): void {
+    if (this.cardState !== CardState.IDLE || this.currentIndex >= this.cardDataList.length) {
+      return;
+    }
+
+    const data: CardData = this.cardDataList[this.currentIndex];
+    const fakeState: GestureState = {
+      startX: 0,
+      startY: 0,
+      currentX: -this.finalConfig.swipeThreshold - 1,
+      currentY: 0,
+      deltaX: -this.finalConfig.swipeThreshold - 1,
+      deltaY: 0,
+      velocity: 0,
+      isActive: false
+    };
+
+    this.performSwipe(fakeState, data, this.currentIndex);
   }
 
   /**
-   * 清理资源
+   * 程序化向右滑动
    */
-  private cleanup(): void {
-    this.cardStates.clear();
-    this.draggingCard = null;
-    this.gestureData = null;
+  public swipeRight(): void {
+    if (this.cardState !== CardState.IDLE || this.currentIndex >= this.cardDataList.length) {
+      return;
+    }
+
+    const data: CardData = this.cardDataList[this.currentIndex];
+    const fakeState: GestureState = {
+      startX: 0,
+      startY: 0,
+      currentX: this.finalConfig.swipeThreshold + 1,
+      currentY: 0,
+      deltaX: this.finalConfig.swipeThreshold + 1,
+      deltaY: 0,
+      velocity: 0,
+      isActive: false
+    };
+
+    this.performSwipe(fakeState, data, this.currentIndex);
+  }
+
+  /**
+   * 重置卡片栈
+   */
+  public reset(): void {
+    this.currentIndex = 0;
+    this.cardState = CardState.IDLE;
+    this.topCardAnimation = AnimationUtils.createSpringBackAnimation();
+  }
+
+  /**
+   * 获取剩余卡片数量
+   */
+  public getRemainingCount(): number {
+    return Math.max(0, this.cardDataList.length - this.currentIndex);
   }
 } 

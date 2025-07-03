@@ -14,13 +14,33 @@
 - 位置：`library/` 
 - 核心的SwipeCardStack组件实现
 - 完整的API和工具类
-- 详细的文档和示例
+- 详细的文档和示例 - [查看文档](./library/README.md)
 
 ### 📱 Entry 模块  
 - 位置：`entry/`
 - 最佳实践示例应用
 - 展示组件的所有功能
 - 可直接运行的演示
+
+### 🎨 快速预览
+
+```typescript
+// 最简单的使用方式
+SwipeCardStack({
+  cardDataList: this.cards,
+  cardBuilder: this.buildCard
+})
+
+@Builder
+buildCard(data: CardData, index: number) {
+  Text(data.title)
+    .width('100%')
+    .height('100%')
+    .textAlign(TextAlign.Center)
+    .backgroundColor(Color.Blue)
+    .borderRadius(16)
+}
+```
 
 ## ✨ 核心特性
 
@@ -139,244 +159,4 @@ entry模块中的Index.ets展示了组件的完整功能：
 
 ---
 
-⭐ 如果这个项目对你有帮助，请给个Star支持一下！ 
-
-# 鸿蒙ArkTS开发规范 (严格版)
-
-> 基于华为官方ArkTS编码风格指南、高性能编程规范及TypeScript迁移指南，严格遵循ArkTS语法限制
-
-## 1. ArkTS 严格语法限制
-
-### 1.1 禁用的JavaScript/TypeScript特性
-
-**❌ 绝对禁止使用：**
-
-```typescript
-// ❌ 解构赋值 (arkts-no-destruct-decls)
-const { name, age } = user;
-let [first, second] = array;
-
-// ❌ 扩展运算符用于对象 (arkts-no-spread)
-const merged = { ...defaultOptions, ...userOptions };
-const newArray = [...oldArray];
-
-// ❌ 动态类型和any
-let data: any = getValue();
-
-// ❌ 枚举
-enum Direction {
-  UP = 'up',
-  DOWN = 'down'
-}
-
-// ❌ as const 断言 (arkts-no-as-const)
-const config = {
-  maxCount: 10,
-  enabled: true
-} as const;
-
-// ❌ 命名空间
-namespace Utils {
-  export function helper() {}
-}
-
-// ❌ 高级类型操作
-type Partial<T> = { [P in keyof T]?: T[P] };
-
-// ❌ ForEach回调函数的void类型注解 (arkts-foreach-callback-void)
-ForEach(dataList, (item: DataType): void => {
-  Text(item.name)
-});
-
-// ❌ 类内部定义interface (arkts-no-interface-in-class)
-class MyClass {
-  interface InternalInterface {  // 错误：interface必须在模块顶层
-    prop: string;
-  }
-}
-```
-
-**✅ 必须替换为：**
-
-```typescript
-// ✅ 显式赋值替代解构
-const name: string = user.name;
-const age: number = user.age;
-
-// ✅ 手动对象合并替代扩展运算符
-function mergeOptions(defaults: Options, user: Options): Required<Options> {
-  const merged: Required<Options> = {
-    prop1: defaults.prop1,
-    prop2: defaults.prop2
-  };
-  if (user.prop1 !== undefined) {
-    merged.prop1 = user.prop1;
-  }
-  if (user.prop2 !== undefined) {
-    merged.prop2 = user.prop2;
-  }
-  return merged;
-}
-
-// ✅ 循环替代数组扩展运算符
-const newArray: T[] = [];
-for (let i = 0; i < oldArray.length; i++) {
-  newArray.push(oldArray[i]);
-}
-
-// ✅ const enum替代普通枚举
-export const enum Direction {
-  UP = 'up',
-  DOWN = 'down'
-}
-
-// ✅ ES模块替代命名空间
-export class Utils {
-  static helper(): void {}
-}
-
-// ✅ 明确类型替代动态类型
-interface UserData {
-  name: string;
-  age: number;
-}
-const data: UserData = getValue();
-
-// ✅ ForEach回调函数不使用void类型注解
-ForEach(dataList, (item: DataType) => {
-  Text(item.name)
-});
-
-// ✅ ForEach的keyGenerator可以有返回类型注解
-ForEach(
-  dataList, 
-  (item: DataType) => {
-    Text(item.name)
-  },
-  (item: DataType): string => item.id  // keyGenerator可以有返回类型
-);
-
-// ❌ @Builder方法内部使用this调用其他@Builder方法 (arkts-builder-this-call)
-@Builder
-private buildParent(): void {
-  Column() {
-    this.buildChild()  // 错误：@Builder内部不能用this调用其他@Builder
-  }
-}
-
-// ✅ @Builder方法内部直接调用其他@Builder方法
-@Builder
-private buildParent(): void {
-  Column() {
-    buildChild()  // 正确：@Builder内部直接调用
-  }
-}
-
-// ❌ @Builder方法作为参数传递时this上下文丢失 (arkts-this-context-loss)
-@Component
-struct ParentComponent {
-  @Builder
-  private buildCard(data: Data): void {
-    Text(this.getTitle(data))  // this在传递后会丢失
-  }
-  
-  build() {
-    ChildComponent({
-      cardBuilder: this.buildCard  // 错误：this上下文丢失
-    })
-  }
-}
-
-// ✅ 使用箭头函数包装保持this上下文
-@Component
-struct ParentComponent {
-  @Builder
-  private buildCard(data: Data): void {
-    Text(this.getTitle(data))
-  }
-  
-  build() {
-    ChildComponent({
-      cardBuilder: (data: Data) => {
-        this.buildCard(data);  // 正确：箭头函数保持this上下文
-      }
-    })
-  }
-}
-
-// ✅ interface定义在模块顶层
-export interface InternalInterface {
-  prop: string;
-}
-
-export class MyClass {
-  // 类内部只能使用interface，不能定义interface
-}
-
-// ❌ 错误：静态方法中使用this
-public static createAnimateParam(config: AnimationConfig): AnimateParam {
-  return {
-    curve: this.createSpringCurve(config), // ArkTS编译错误
-  };
-}
-
-// ✅ 正确：静态方法中使用类名
-public static createAnimateParam(config: AnimationConfig): AnimateParam {
-  return {
-    curve: AnimationUtils.createSpringCurve(config), // 符合ArkTS规范
-  };
-}
-```
-
-### 1.2 ArkUI组件特有语法规范
-
-**❌ ArkUI组件语法错误：**
-
-```typescript
-// ❌ ForEach回调函数使用void返回类型
-ForEach(this.dataList, (item: DataType): void => {
-  Text(item.name)  // 编译错误：is not callable
-});
-
-// ❌ @Builder方法中的非UI语法
-@Builder
-private buildItem(): void {
-  const localVar = 'test';  // 错误：@Builder中不能声明变量
-  Text(localVar)
-}
-
-// ❌ overlay直接传入组件属性链
-Circle()
-  .overlay(
-    Text('content').fontSize(20)  // 错误：不能直接传入组件属性链
-  )
-```
-
-**✅ ArkUI组件正确语法：**
-
-```typescript
-// ✅ ForEach回调函数不使用返回类型注解
-ForEach(this.dataList, (item: DataType) => {
-  Text(item.name)
-});
-
-// ✅ @Builder方法中只使用UI组件
-@Builder
-private buildItem(): void {
-  Text(this.getItemName())  // 正确：调用方法获取数据
-}
-
-// ✅ overlay使用Builder函数
-Circle()
-  .overlay(() => {
-    Text('content')
-      .fontSize(20)
-  })
-
-// ✅ 或使用Stack布局
-Stack() {
-  Circle()
-  Text('content')
-    .fontSize(20)
-}
-``` 
+⭐ 如果这个项目对你有帮助，请给个Star支持一下

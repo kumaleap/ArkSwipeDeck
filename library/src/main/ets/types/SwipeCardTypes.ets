@@ -1,7 +1,7 @@
 /**
- * SwipeCardStack 组件核心类型定义
+ * 滑动卡片类型定义
  * 
- * 提供卡片堆叠滑动容器的所有类型定义
+ * 定义滑动卡片组件所需的所有类型和接口
  * 
  * @since 1.0.0
  * @syscap SystemCapability.ArkUI.ArkUI.Full
@@ -18,12 +18,128 @@ export const enum SwipeDirection {
 }
 
 /**
- * 动画类型枚举
+ * 卡片数据接口
  */
-export const enum AnimationType {
-  SPRING = 'spring',
-  FRICTION = 'friction',
-  EASE = 'ease'
+export interface CardData {
+  id: string;
+  title?: string;
+  description?: string;
+  color?: string;
+  likes?: number;
+  distance?: string;
+}
+
+/**
+ * 卡片信息接口
+ */
+export interface CardInfo {
+  data: CardData;
+  index: number;
+  stackIndex: number;
+}
+
+/**
+ * 卡片滑动回调函数类型
+ * @param direction - 滑动方向
+ * @param data - 卡片数据
+ * @param index - 卡片索引
+ */
+export type OnCardSwipedCallback = (direction: SwipeDirection, data: CardData, index: number) => void;
+
+/**
+ * 卡片点击回调函数类型
+ * @param data - 卡片数据
+ * @param index - 卡片索引
+ */
+export type OnCardClickedCallback = (data: CardData, index: number) => void;
+
+/**
+ * 卡片栈即将为空回调函数类型
+ * @param remainingCount - 剩余卡片数量
+ */
+export type OnStackNearEmptyCallback = (remainingCount: number) => void;
+
+/**
+ * 卡片栈为空回调函数类型
+ */
+export type OnStackEmptyCallback = () => void;
+
+/**
+ * 滑动事件处理器接口
+ */
+export interface SwipeEventHandler {
+  /**
+   * 卡片滑动回调
+   */
+  onCardSwiped?: OnCardSwipedCallback;
+
+  /**
+   * 卡片点击回调
+   */
+  onCardClicked?: OnCardClickedCallback;
+
+  /**
+   * 卡片栈即将为空回调
+   */
+  onStackNearEmpty?: OnStackNearEmptyCallback;
+
+  /**
+   * 卡片栈为空回调
+   */
+  onStackEmpty?: OnStackEmptyCallback;
+}
+
+/**
+ * 滑动配置接口
+ */
+export interface SwipeConfig {
+  /**
+   * 最大可见卡片数量
+   * @default 4
+   */
+  maxVisibleCards?: number;
+
+  /**
+   * 触发栈即将为空事件的最小卡片数量
+   * @default 2
+   */
+  minStackSize?: number;
+
+  /**
+   * 卡片旋转角度（度）
+   * @default 15
+   */
+  rotationAngle?: number;
+
+  /**
+   * 卡片缩放比例
+   * @default 0.95
+   */
+  scaleRatio?: number;
+
+  /**
+   * 滑动阈值（触发滑动的最小距离）
+   * @default 100
+   */
+  swipeThreshold?: number;
+
+  /**
+   * 动画持续时间（毫秒）
+   * @default 300
+   */
+  animationDuration?: number;
+
+  /**
+   * 是否启用弹性效果
+   * @default true
+   */
+  enableSpringBack?: boolean;
+
+  /**
+   * 卡片之间的间距（像素）
+   * @default 8
+   */
+  cardSpacing?: number;
 }
 
 /**
@@ -32,200 +148,31 @@ export const enum AnimationType {
 export const enum CardState {
   IDLE = 'idle',
   DRAGGING = 'dragging',
-  ANIMATING = 'animating',
-  DISMISSED = 'dismissed'
+  SWIPING = 'swiping',
+  ANIMATING = 'animating'
 }
 
 /**
- * 卡片数据基础值类型
+ * 动画参数接口
  */
-export type CardDataPrimitiveValue = string | number | boolean | null;
-
-/**
- * 卡片数据接口
- * 使用预定义字段替代索引签名 (符合arkts-no-indexed-signatures规范)
- */
-export interface CardData {
-  /** 唯一标识符 */
-  readonly id: string;
-  /** 卡片索引 */
-  readonly index: number;
-  /** 是否可见 */
-  visible: boolean;
-  /** 自定义数据 - 使用Map存储动态键值对 */
-  data?: Map<string, CardDataPrimitiveValue>;
+export interface AnimationParams {
+  translateX: number;
+  translateY: number;
+  rotation: number;
+  scale: number;
+  opacity: number;
 }
 
 /**
- * 滑动事件数据接口
+ * 手势状态接口
  */
-export interface SwipeEvent {
-  /** 卡片数据 */
-  readonly card: CardData;
-  /** 滑动方向 */
-  readonly direction: SwipeDirection;
-  /** 滑动距离比例 (0-1) */
-  readonly progress: number;
-  /** 滑动速度 */
-  readonly velocity: number;
-  /** 触摸位置 */
-  readonly position: Position;
-}
-
-/**
- * 位置坐标接口
- */
-export interface Position {
-  readonly x: number;
-  readonly y: number;
-}
-
-/**
- * 容器尺寸接口
- */
-export interface ContainerSize {
-  width: number;
-  height: number;
-}
-
-/**
- * 动画配置接口
- */
-export interface AnimationConfig {
-  /** 动画类型 */
-  readonly type: AnimationType;
-  /** 动画时长(ms) */
-  readonly duration: number;
-  /** 弹簧动画参数 */
-  readonly spring?: SpringConfig;
-  /** 摩擦动画参数 */
-  readonly friction?: FrictionConfig;
-  /** 缓动曲线 */
-  readonly curve?: Curve;
-}
-
-/**
- * 弹簧动画配置
- */
-export interface SpringConfig {
-  readonly velocity: number;
-  readonly mass: number;
-  readonly stiffness: number;
-  readonly damping: number;
-}
-
-/**
- * 摩擦动画配置
- */
-export interface FrictionConfig {
-  readonly friction: number;
-}
-
-/**
- * 堆叠配置接口
- */
-export interface StackConfig {
-  /** 可见卡片数量 */
-  readonly visibleCount: number;
-  /** 卡片间距 */
-  readonly cardSpacing: number;
-  /** 缩放比例 */
-  readonly scaleStep: number;
-  /** 透明度步长 */
-  readonly opacityStep: number;
-  /** 旋转角度步长 */
-  readonly rotationStep: number;
-}
-
-/**
- * 滑动配置接口
- */
-export interface SwipeConfig {
-  /** 滑动阈值距离 */
-  readonly threshold: number;
-  /** 滑动阈值速度 */
-  readonly velocityThreshold: number;
-  /** 允许的滑动方向 */
-  readonly allowedDirections: SwipeDirection[];
-  /** 最大旋转角度 */
-  readonly maxRotation: number;
-  /** 是否启用边界回弹 */
-  readonly enableBounce: boolean;
-}
-
-/**
- * 组件配置接口
- */
-export interface SwipeCardStackConfig {
-  /** 堆叠配置 */
-  readonly stack: StackConfig;
-  /** 滑动配置 */
-  readonly swipe: SwipeConfig;
-  /** 动画配置 */
-  readonly animation: AnimationConfig;
-  /** 是否启用循环模式 */
-  readonly enableLoop: boolean;
-  /** 是否启用调试模式 */
-  readonly debug: boolean;
-}
-
-/**
- * 组件配置更新接口
- * 替代Partial<SwipeCardStackConfig> (符合arkts规范)
- */
-export interface SwipeCardStackConfigUpdate {
-  /** 堆叠配置 */
-  readonly stack?: StackConfig;
-  /** 滑动配置 */
-  readonly swipe?: SwipeConfig;
-  /** 动画配置 */
-  readonly animation?: AnimationConfig;
-  /** 是否启用循环模式 */
-  readonly enableLoop?: boolean;
-  /** 是否启用调试模式 */
-  readonly debug?: boolean;
-}
-
-/**
- * 事件回调接口
- */
-export interface SwipeCardStackCallbacks {
-  /** 开始拖拽回调 */
-  onDragStart?: (event: SwipeEvent) => void;
-  /** 拖拽中回调 */
-  onDragUpdate?: (event: SwipeEvent) => void;
-  /** 拖拽结束回调 */
-  onDragEnd?: (event: SwipeEvent) => void;
-  /** 卡片滑出回调 */
-  onCardSwiped?: (event: SwipeEvent) => void;
-  /** 卡片回弹回调 */
-  onCardBounced?: (event: SwipeEvent) => void;
-  /** 卡片栈为空回调 */
-  onStackEmpty?: () => void;
-  /** 卡片栈更新回调 */
-  onStackUpdate?: (visibleCards: CardData[]) => void;
-}
-
-/**
- * 组件控制器接口
- */
-export interface SwipeCardStackController {
-  /** 程序化触发左滑 */
-  swipeLeft(animated?: boolean): Promise<void>;
-  /** 程序化触发右滑 */
-  swipeRight(animated?: boolean): Promise<void>;
-  /** 程序化触发上滑 */
-  swipeUp(animated?: boolean): Promise<void>;
-  /** 程序化触发下滑 */
-  swipeDown(animated?: boolean): Promise<void>;
-  /** 重置当前卡片位置 */
-  resetCard(animated?: boolean): Promise<void>;
-  /** 获取当前可见卡片 */
-  getVisibleCards(): CardData[];
-  /** 获取顶部卡片 */
-  getTopCard(): CardData | null;
-  /** 更新配置 */
-  updateConfig(config: SwipeCardStackConfigUpdate): void;
-  /** 重新加载数据 */
-  reload(cards: CardData[]): void;
+export interface GestureState {
+  startX: number;
+  startY: number;
+  currentX: number;
+  currentY: number;
+  deltaX: number;
+  deltaY: number;
+  velocity: number;
+  isActive: boolean;
 } 

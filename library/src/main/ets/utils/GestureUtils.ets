@@ -1,272 +1,251 @@
 /**
  * 手势工具类
- *
- * 提供手势识别、方向判断和速度计算等工具函数
- *
+ * 
+ * 提供滑动卡片组件的手势识别和处理功能
+ * 
  * @since 1.0.0
  * @syscap SystemCapability.ArkUI.ArkUI.Full
  */
 
-import type { Position, SwipeConfig, ContainerSize } from '../types/SwipeCardTypes';
+import hilog from '@ohos.hilog';
+import type { GestureState } from '../types/SwipeCardTypes';
 import { SwipeDirection } from '../types/SwipeCardTypes';
-import { GESTURE_CONSTANTS } from '../constants/DefaultConfigs';
+import { GestureConstants } from '../constants/DefaultConfigs';
 
-/**
- * 手势数据接口
- */
-export interface GestureData {
-  /** 开始位置 */
-  readonly startPosition: Position;
-
-  /** 当前位置 */
-  readonly currentPosition: Position;
-
-  /** 开始时间戳 */
-  readonly startTime: number;
-
-  /** 当前时间戳 */
-  readonly currentTime: number;
-}
-
-/**
- * 速度数据接口
- */
-export interface VelocityData {
-  /** X轴速度 */
-  readonly velocityX: number;
-
-  /** Y轴速度 */
-  readonly velocityY: number;
-
-  /** 总速度 */
-  readonly velocity: number;
-}
-
-/**
- * 矩形区域接口
- */
-export interface RectArea {
-  readonly x: number;
-  readonly y: number;
-  readonly width: number;
-  readonly height: number;
-}
+// 日志标签
+const TAG: string = 'ArkSwipeDeck';
 
 /**
  * 手势工具类
  */
 export class GestureUtils {
   /**
-   * 计算两点间距离
-   *
-   * @param point1 - 起始点
-   * @param point2 - 结束点
-   * @returns 距离值
+   * 创建初始手势状态
+   * @param startX - 起始X坐标
+   * @param startY - 起始Y坐标
+   * @returns 初始手势状态
    */
-  public static calculateDistance(point1: Position, point2: Position): number {
-    const deltaX: number = point2.x - point1.x;
-    const deltaY: number = point2.y - point1.y;
+  static createInitialGestureState(startX: number, startY: number): GestureState {
+    return {
+      startX: startX,
+      startY: startY,
+      currentX: startX,
+      currentY: startY,
+      deltaX: 0,
+      deltaY: 0,
+      velocity: 0,
+      isActive: true
+    };
+  }
+
+  /**
+   * 更新手势状态
+   * @param state - 当前手势状态
+   * @param currentX - 当前X坐标
+   * @param currentY - 当前Y坐标
+   * @returns 更新后的手势状态
+   */
+  static updateGestureState(
+    state: GestureState,
+    currentX: number,
+    currentY: number
+  ): GestureState {
+    return {
+      startX: state.startX,
+      startY: state.startY,
+      currentX: currentX,
+      currentY: currentY,
+      deltaX: currentX - state.startX,
+      deltaY: currentY - state.startY,
+      velocity: GestureUtils.calculateVelocity(state, currentX, currentY),
+      isActive: state.isActive
+    };
+  }
+
+  /**
+   * 计算手势速度
+   * @param state - 当前手势状态
+   * @param currentX - 当前X坐标
+   * @param currentY - 当前Y坐标
+   * @returns 速度值
+   */
+  static calculateVelocity(
+    state: GestureState,
+    currentX: number,
+    currentY: number
+  ): number {
+    const deltaX: number = currentX - state.currentX;
+    const deltaY: number = currentY - state.currentY;
     return Math.sqrt(deltaX * deltaX + deltaY * deltaY);
   }
 
   /**
-   * 计算移动向量
-   *
-   * @param start - 起始位置
-   * @param current - 当前位置
-   * @returns 移动向量
+   * 判断是否应该触发滑动
+   * @param state - 手势状态
+   * @param threshold - 滑动阈值
+   * @returns 是否应该滑动
    */
-  public static calculateDelta(start: Position, current: Position): Position {
-    const delta: Position = {
-      x: current.x - start.x,
-      y: current.y - start.y
-    };
-    return delta;
+  static shouldTriggerSwipe(state: GestureState, threshold: number): boolean {
+    const distance: number = Math.sqrt(state.deltaX * state.deltaX + state.deltaY * state.deltaY);
+    return distance >= threshold;
   }
 
   /**
    * 判断滑动方向
-   *
-   * @param start - 起始位置
-   * @param current - 当前位置
+   * @param state - 手势状态
    * @returns 滑动方向
    */
-  public static getSwipeDirection(start: Position, current: Position): SwipeDirection {
-    const delta: Position = GestureUtils.calculateDelta(start, current);
-    const absX: number = Math.abs(delta.x);
-    const absY: number = Math.abs(delta.y);
+  static getSwipeDirection(state: GestureState): SwipeDirection {
+    const absX: number = Math.abs(state.deltaX);
+    const absY: number = Math.abs(state.deltaY);
 
     if (absX > absY) {
-      return delta.x > 0 ? SwipeDirection.RIGHT : SwipeDirection.LEFT;
+      return state.deltaX > 0 ? SwipeDirection.RIGHT : SwipeDirection.LEFT;
     } else {
-      return delta.y > 0 ? SwipeDirection.DOWN : SwipeDirection.UP;
+      return state.deltaY > 0 ? SwipeDirection.DOWN : SwipeDirection.UP;
     }
+  }
+
+  /**
+   * 判断是否为有效拖拽
+   * @param state - 手势状态
+   * @returns 是否为有效拖拽
+   */
+  static isValidDrag(state: GestureState): boolean {
+    const distance: number = Math.sqrt(state.deltaX * state.deltaX + state.deltaY * state.deltaY);
+    return distance >= GestureConstants.MIN_DRAG_DISTANCE;
+  }
+
+  /**
+   * 创建拖拽手势处理器
+   * @param onStart - 拖拽开始回调
+   * @param onUpdate - 拖拽更新回调
+   * @param onEnd - 拖拽结束回调
+   * @returns 拖拽手势处理器
+   */
+  static createDragGesture(
+    onStart: (x: number, y: number) => void,
+    onUpdate: (state: GestureState) => void,
+    onEnd: (state: GestureState) => void
+  ): PanGestureInterface {
+    let gestureState: GestureState | null = null;
+
+    hilog.debug(0x0000, TAG, 'GestureUtils.createDragGesture: 创建拖拽手势');
+
+    return PanGesture({ 
+      fingers: 1, 
+      direction: PanDirection.All, 
+      distance: 1  // 设置最小触发距离为1px
+    })
+      .onActionStart((event: GestureEvent): void => {
+        hilog.debug(0x0000, TAG, 'PanGesture.onActionStart: 拖拽开始');
+        const x: number = event.fingerList[0].globalX;
+        const y: number = event.fingerList[0].globalY;
+        gestureState = GestureUtils.createInitialGestureState(x, y);
+        onStart(x, y);
+      })
+      .onActionUpdate((event: GestureEvent): void => {
+        if (gestureState === null) {
+          hilog.debug(0x0000, TAG, 'PanGesture.onActionUpdate: gestureState为null');
+          return;
+        }
+
+        const x: number = event.fingerList[0].globalX;
+        const y: number = event.fingerList[0].globalY;
+        gestureState = GestureUtils.updateGestureState(gestureState, x, y);
+        hilog.debug(0x0000, TAG, 'PanGesture.onActionUpdate: deltaX=%{public}f, deltaY=%{public}f', 
+          gestureState.deltaX, gestureState.deltaY);
+        onUpdate(gestureState);
+      })
+      .onActionEnd((event: GestureEvent): void => {
+        if (gestureState === null) {
+          hilog.debug(0x0000, TAG, 'PanGesture.onActionEnd: gestureState为null');
+          return;
+        }
+
+        const x: number = event.fingerList[0].globalX;
+        const y: number = event.fingerList[0].globalY;
+        gestureState = GestureUtils.updateGestureState(gestureState, x, y);
+        gestureState.isActive = false;
+        hilog.debug(0x0000, TAG, 'PanGesture.onActionEnd: 最终deltaX=%{public}f, deltaY=%{public}f', 
+          gestureState.deltaX, gestureState.deltaY);
+        onEnd(gestureState);
+        gestureState = null;
+      });
+  }
+
+  /**
+   * 创建点击手势处理器
+   * @param onClick - 点击回调
+   * @returns 点击手势处理器
+   */
+  static createTapGesture(onClick: () => void): TapGestureInterface {
+    hilog.debug(0x0000, TAG, 'GestureUtils.createTapGesture: 创建点击手势');
+    return TapGesture({ count: 1 })
+      .onAction((): void => {
+        hilog.debug(0x0000, TAG, 'TapGesture.onAction: 点击触发');
+        onClick();
+      });
   }
 
   /**
    * 计算滑动进度
-   *
-   * @param start - 起始位置
-   * @param current - 当前位置
-   * @param threshold - 阈值距离
-   * @returns 滑动进度 (0-1)
+   * @param deltaX - X轴位移
+   * @param cardWidth - 卡片宽度
+   * @returns 滑动进度（0-1）
    */
-  public static calculateSwipeProgress(start: Position, current: Position, threshold: number): number {
-    const distance: number = GestureUtils.calculateDistance(start, current);
-    return Math.min(1, distance / threshold);
+  static calculateSwipeProgress(deltaX: number, cardWidth: number): number {
+    const progress: number = Math.abs(deltaX) / cardWidth;
+    return Math.min(progress, 1);
   }
 
   /**
-   * 计算速度
-   *
-   * @param gestureData - 手势数据
-   * @returns 速度数据
+   * 计算阻力系数
+   * @param distance - 移动距离
+   * @param maxDistance - 最大距离
+   * @returns 阻力系数（0-1）
    */
-  public static calculateVelocity(gestureData: GestureData): VelocityData {
-    const delta: Position = GestureUtils.calculateDelta(gestureData.startPosition, gestureData.currentPosition);
-    const timeDelta: number = gestureData.currentTime - gestureData.startTime;
-
-    if (timeDelta === 0) {
-      const zeroVelocity: VelocityData = {
-        velocityX: 0,
-        velocityY: 0,
-        velocity: 0
-      };
-      return zeroVelocity;
+  static calculateResistance(distance: number, maxDistance: number): number {
+    if (distance <= 0) {
+      return 1;
     }
 
-    const velocityX: number = delta.x / timeDelta * 1000; // px/s
-    const velocityY: number = delta.y / timeDelta * 1000; // px/s
-    const velocity: number = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
-
-    const velocityData: VelocityData = {
-      velocityX,
-      velocityY,
-      velocity
-    };
-    return velocityData;
+    const ratio: number = distance / maxDistance;
+    return Math.max(0.1, 1 - ratio * 0.5);
   }
 
   /**
-   * 判断是否为有效滑动
-   *
-   * @param start - 起始位置
-   * @param current - 当前位置
-   * @param config - 滑动配置
-   * @returns 是否为有效滑动
+   * 应用阻力效果
+   * @param delta - 原始位移
+   * @param resistance - 阻力系数
+   * @returns 应用阻力后的位移
    */
-  public static isValidSwipe(start: Position, current: Position, config: SwipeConfig): boolean {
-    const distance: number = GestureUtils.calculateDistance(start, current);
-    const direction: SwipeDirection = GestureUtils.getSwipeDirection(start, current);
+  static applyResistance(delta: number, resistance: number): number {
+    return delta * resistance;
+  }
 
-    // 检查距离是否达到阈值
-    if (distance < GESTURE_CONSTANTS.MIN_SWIPE_DISTANCE) {
-      return false;
+  /**
+   * 限制拖拽范围
+   * @param delta - 位移
+   * @param maxDistance - 最大距离
+   * @returns 限制后的位移
+   */
+  static clampDragDistance(delta: number, maxDistance: number): number {
+    return Math.max(-maxDistance, Math.min(maxDistance, delta));
+  }
+
+  /**
+   * 计算弹性效果
+   * @param progress - 进度（0-1）
+   * @param elasticity - 弹性系数
+   * @returns 弹性效果值
+   */
+  static calculateElasticity(progress: number, elasticity: number = 0.3): number {
+    if (progress <= 1) {
+      return progress;
     }
 
-    // 检查方向是否被允许
-    return config.allowedDirections.includes(direction);
+    const overshoot: number = progress - 1;
+    return 1 + overshoot * elasticity;
   }
-
-  /**
-   * 判断是否应该触发滑动
-   *
-   * @param gestureData - 手势数据
-   * @param config - 滑动配置
-   * @returns 是否应该触发滑动
-   */
-  public static shouldTriggerSwipe(gestureData: GestureData, config: SwipeConfig): boolean {
-    const distance: number = GestureUtils.calculateDistance(gestureData.startPosition, gestureData.currentPosition);
-    const velocity: VelocityData = GestureUtils.calculateVelocity(gestureData);
-
-    // 距离阈值判断
-    if (distance >= config.threshold) {
-      return true;
-    }
-
-    // 速度阈值判断
-    if (velocity.velocity >= config.velocityThreshold) {
-      return true;
-    }
-
-    return false;
-  }
-
-  /**
-   * 计算旋转角度
-   *
-   * @param start - 起始位置
-   * @param current - 当前位置
-   * @param maxRotation - 最大旋转角度
-   * @param containerWidth - 容器宽度
-   * @returns 旋转角度
-   */
-  public static calculateRotation(
-    start: Position,
-    current: Position,
-    maxRotation: number,
-    containerWidth: number
-  ): number {
-    const delta: Position = GestureUtils.calculateDelta(start, current);
-    const progress: number = Math.abs(delta.x) / (containerWidth * 0.5);
-    const clampedProgress: number = Math.min(1, progress);
-
-    const rotation: number = clampedProgress * maxRotation;
-    return delta.x > 0 ? rotation : -rotation;
-  }
-
-  /**
-   * 计算透明度
-   *
-   * @param progress - 滑动进度
-   * @param minOpacity - 最小透明度
-   * @returns 透明度值
-   */
-  public static calculateOpacity(progress: number, minOpacity: number = 0.3): number {
-    return Math.max(minOpacity, 1 - progress);
-  }
-
-  /**
-   * 计算缩放比例
-   *
-   * @param progress - 滑动进度
-   * @param minScale - 最小缩放比例
-   * @returns 缩放比例
-   */
-  public static calculateScale(progress: number, minScale: number = 0.8): number {
-    return Math.max(minScale, 1 - progress * 0.2);
-  }
-
-  /**
-   * 判断点是否在矩形区域内
-   *
-   * @param point - 点坐标
-   * @param rect - 矩形区域
-   * @returns 是否在区域内
-   */
-  public static isPointInRect(point: Position, rect: RectArea): boolean {
-    return point.x >= rect.x &&
-      point.x <= rect.x + rect.width &&
-      point.y >= rect.y &&
-      point.y <= rect.y + rect.height;
-  }
-
-  /**
-   * 计算边界检测
-   *
-   * @param position - 当前位置
-   * @param containerSize - 容器尺寸
-   * @param threshold - 边界阈值
-   * @returns 是否触及边界
-   */
-  public static isBoundaryReached(
-    position: Position,
-    containerSize: ContainerSize,
-    threshold: number = GESTURE_CONSTANTS.BOUNDARY_THRESHOLD
-  ): boolean {
-    const boundaryX: number = containerSize.width * threshold;
-    const boundaryY: number = containerSize.height * threshold;
-
-    return Math.abs(position.x) >= boundaryX || Math.abs(position.y) >= boundaryY;
-  }
-}
+} 
