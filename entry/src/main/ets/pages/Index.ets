@@ -2,6 +2,7 @@
  * 滑动卡片示例页面
  *
  * 展示ArkSwipeDeck的最基本用法
+ * 遵循ArkTS严格语法规范
  *
  * @since 1.0.0
  */
@@ -9,7 +10,6 @@
 import hilog from '@ohos.hilog';
 import {
   SwipeCardStack,
-  type CardData,
   SwipeDirection,
   type OnCardSwipedCallback,
   type OnLoadNextPageCallback
@@ -18,18 +18,24 @@ import {
 // 日志标签
 const TAG: string = 'ArkSwipeDeck';
 
+/**
+ * 示例卡片数据类
+ */
+export class CardData {
+  id?: string;
+  title?: string;
+  name?: string;
+  age?: number;
+}
+
 @Entry
 struct Index {
   @State private cards: CardData[] = [
-    { id: '1', title: '第一张卡片' },
-    { id: '2', title: '第二张卡片' },
-    { id: '3', title: '第三张卡片' },
-    { id: '4', title: '第四张卡片' },
-    { id: '5', title: '第五张卡片' }
-  ];
-  @State private colors: string[] = [
-    '#FF6B6B', '#4ECDC4', '#45B7D1',
-    '#96CEB4', '#FFEAA7', '#DDA0DD'
+    { id: '1', title: '第一张卡片', name: '张三', age: 25 },
+    { id: '2', title: '第二张卡片', name: '李四', age: 28 },
+    { id: '3', title: '第三张卡片', name: '王五', age: 30 },
+    { id: '4', title: '第四张卡片', name: '赵六', age: 26 },
+    { id: '5', title: '第五张卡片', name: '钱七', age: 32 }
   ];
   @State private nextCardId: number = 6; // 下一张卡片的ID
   @State private isLoading: boolean = false; // 是否正在加载
@@ -64,11 +70,21 @@ struct Index {
   }
 
   @Builder
-  buildCard(data: CardData, index: number): void {
+  buildCard(cardData: CardData, index: number): void {
     Column() {
-      Text(data.title as string)
+      Text(cardData.title ?? '默认标题')
         .fontSize(20)
         .fontWeight(FontWeight.Bold)
+        .fontColor(Color.White)
+        .margin({ bottom: 10 })
+
+      Text(`姓名: ${cardData.name ?? '未知'}`)
+        .fontSize(16)
+        .fontColor(Color.White)
+        .margin({ bottom: 5 })
+        
+      Text(`年龄: ${cardData.age ?? 0}岁`)
+        .fontSize(16)
         .fontColor(Color.White)
         .margin({ bottom: 10 })
 
@@ -87,11 +103,14 @@ struct Index {
     .height('100%')
     .borderRadius(20)
     .justifyContent(FlexAlign.Center)
-    .backgroundColor("#96CEB4")
+    .backgroundColor("#FF6B6B")
   }
 
-  private handleCardSwiped: OnCardSwipedCallback = (direction: SwipeDirection, data: CardData, index: number): void => {
-    hilog.debug(0x0000, TAG, '卡片 "%{public}s" 向 %{public}s 滑动', data.title as string, direction);
+  private handleCardSwiped: OnCardSwipedCallback = (direction: SwipeDirection, data: object, index: number): void => {
+    // 类型断言：将object转换为CardData
+    const cardData: CardData = data as CardData;
+    
+    hilog.debug(0x0000, TAG, '卡片 "%{public}s" 向 %{public}s 滑动', cardData.title ?? '未知', direction);
 
     // 可以在这里添加更多的交互逻辑
     if (direction === SwipeDirection.LEFT) {
@@ -100,6 +119,7 @@ struct Index {
       hilog.debug(0x0000, TAG, '用户喜欢这张卡片');
     }
   };
+  
   private handleLoadNextPage: OnLoadNextPageCallback = (currentIndex: number, remainingCount: number): void => {
     hilog.debug(0x0000, TAG, '触发预加载: currentIndex=%{public}d, remainingCount=%{public}d', currentIndex,
       remainingCount);
@@ -124,7 +144,7 @@ struct Index {
     setTimeout((): void => {
       const newCards: CardData[] = this.generateNewCards(3); // 每次加载3张新卡片
 
-      // 直接添加到cards数组，触发组件重新渲染
+      // ArkTS规范：手动循环替代扩展运算符
       for (let i = 0; i < newCards.length; i++) {
         this.cards.push(newCards[i]);
       }
@@ -140,11 +160,14 @@ struct Index {
    */
   private generateNewCards(count: number): CardData[] {
     const newCards: CardData[] = [];
+    const names: string[] = ['新用户A', '新用户B', '新用户C', '新用户D', '新用户E'];
 
     for (let i = 0; i < count; i++) {
       const cardData: CardData = {
         id: this.nextCardId.toString(),
-        title: `第${this.nextCardId}张卡片`
+        title: `第${this.nextCardId}张卡片`,
+        name: names[i % names.length],
+        age: 20 + Math.floor(Math.random() * 15) // 20-35岁随机年龄
       };
       newCards.push(cardData);
       this.nextCardId++;
@@ -152,4 +175,4 @@ struct Index {
 
     return newCards;
   }
-} 
+}

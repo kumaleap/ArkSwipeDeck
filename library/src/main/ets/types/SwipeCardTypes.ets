@@ -2,6 +2,7 @@
  * 滑动卡片类型定义
  * 
  * 定义滑动卡片组件所需的所有类型和接口
+ * 遵循ArkTS严格语法规范
  * 
  * @since 1.0.0
  * @syscap SystemCapability.ArkUI.ArkUI.Full
@@ -18,40 +19,42 @@ export const enum SwipeDirection {
 }
 
 /**
- * 卡片数据接口
+ * 卡片状态枚举
  */
-export interface CardData {
-  id: string;
-  title?: string;
-  description?: string;
-  color?: string;
-  likes?: number;
-  distance?: string;
+export const enum CardState {
+  IDLE = 'idle',
+  DRAGGING = 'dragging',
+  SWIPING = 'swiping',
+  ANIMATING = 'animating'
 }
 
 /**
- * 卡片信息接口
+ * 内部卡片信息接口 - 仅供组件内部使用
+ * 包含数据对象、数据索引和堆叠索引
  */
-export interface CardInfo {
-  data: CardData;
-  index: number;
-  stackIndex: number;
+interface InternalCardInfo {
+  /** 用户数据对象 - 任意结构 */
+  readonly data: object;
+  /** 数据在原数组中的索引 */
+  readonly dataIndex: number;
+  /** 在可见卡片堆叠中的索引 */
+  readonly stackIndex: number;
 }
 
 /**
  * 卡片滑动回调函数类型
  * @param direction - 滑动方向
- * @param data - 卡片数据
- * @param index - 卡片索引
+ * @param data - 卡片数据对象
+ * @param index - 卡片在数组中的索引
  */
-export type OnCardSwipedCallback = (direction: SwipeDirection, data: CardData, index: number) => void;
+export type OnCardSwipedCallback = (direction: SwipeDirection, data: object, index: number) => void;
 
 /**
  * 卡片点击回调函数类型
- * @param data - 卡片数据
- * @param index - 卡片索引
+ * @param data - 卡片数据对象
+ * @param index - 卡片在数组中的索引
  */
-export type OnCardClickedCallback = (data: CardData, index: number) => void;
+export type OnCardClickedCallback = (data: object, index: number) => void;
 
 /**
  * 卡片栈即将为空回调函数类型
@@ -161,16 +164,6 @@ export interface SwipeConfig {
 }
 
 /**
- * 卡片状态枚举
- */
-export const enum CardState {
-  IDLE = 'idle',
-  DRAGGING = 'dragging',
-  SWIPING = 'swiping',
-  ANIMATING = 'animating'
-}
-
-/**
  * 动画参数接口
  */
 export interface AnimationParams {
@@ -193,4 +186,7 @@ export interface GestureState {
   deltaY: number;
   velocity: number;
   isActive: boolean;
-} 
+}
+
+// 导出内部类型供组件使用
+export type { InternalCardInfo }; 
