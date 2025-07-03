@@ -22,7 +22,7 @@
 
 ```bash
 # 在你的模块目录下
-ohpm install arkswipe-deck
+ohpm install ark-swipe-deck
 ```
 
 ### 基础使用
@@ -36,7 +36,7 @@ import {
   type OnCardClickedCallback,
   type OnStackNearEmptyCallback,
   type OnStackEmptyCallback
-} from 'arkswipe-deck';
+} from 'ark-swipe-deck';
 
 @Entry
 @Component
