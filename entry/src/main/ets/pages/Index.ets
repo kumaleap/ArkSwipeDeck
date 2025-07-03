@@ -56,19 +56,6 @@ struct Index {
         .width('90%')
         .height(400)
         .margin({ bottom: 20 })
-
-      Text('← 向左滑动表示不喜欢 | 向右滑动表示喜欢 →')
-        .fontSize(12)
-        .fontColor('#999999')
-        .textAlign(TextAlign.Center)
-        .margin({ top: 10 })
-
-      if (this.isLoading) {
-        Text('正在加载更多卡片...')
-          .fontSize(14)
-          .fontColor('#666666')
-          .margin({ top: 10 })
-      }
     }
     .width('100%')
     .height('100%')

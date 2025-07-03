@@ -439,23 +439,18 @@ export struct SwipeCardStack {
    * 滑动完成处理
    */
   private onSwipeComplete(data: CardData, dataIndex: number, direction: SwipeDirection): void {
-    // 移动到下一张卡片
+    // 先立即重置动画状态，避免下一张卡片继承当前动画状态
+    this.topCardAnimation = {
+      translateX: 0,
+      translateY: 0,
+      rotation: 0,
+      scale: 1,
+      opacity: 1
+    };
+    
+    // 然后移动到下一张卡片
     this.currentIndex++;
     hilog.debug(0x0000, TAG, '切换到下一张卡片，新的currentIndex: %{public}d', this.currentIndex);
-    
-    // 平滑重置顶层卡片动画，避免突然放大
-    animateTo({
-      duration: 150,
-      curve: Curve.EaseOut
-    }, (): void => {
-      this.topCardAnimation = {
-        translateX: 0,
-        translateY: 0,
-        rotation: 0,
-        scale: 1,
-        opacity: 1
-      };
-    });
     
     // 输出新的顶层卡片信息
     if (this.currentIndex < this.cardDataList.length) {
