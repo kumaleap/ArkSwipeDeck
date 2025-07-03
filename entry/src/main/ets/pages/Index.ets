@@ -31,11 +31,56 @@ export class CardData {
 @Entry
 struct Index {
   @State private cards: CardData[] = [
-    { id: '1', title: '第一张卡片', name: '张三', age: 25 },
-    { id: '2', title: '第二张卡片', name: '李四', age: 28 },
-    { id: '3', title: '第三张卡片', name: '王五', age: 30 },
-    { id: '4', title: '第四张卡片', name: '赵六', age: 26 },
-    { id: '5', title: '第五张卡片', name: '钱七', age: 32 }
+    {
+      id: '1',
+      title: '第一张卡片',
+      name: '张三',
+      age: 25
+    },
+    {
+      id: '2',
+      title: '第二张卡片',
+      name: '李四',
+      age: 28
+    },
+    {
+      id: '3',
+      title: '第三张卡片',
+      name: '王五',
+      age: 30
+    },
+    {
+      id: '4',
+      title: '第四张卡片',
+      name: '赵六',
+      age: 26
+    },
+    {
+      id: '5',
+      title: '第五张卡片',
+      name: '钱七',
+      age: 32
+    }, {
+    id: '5',
+    title: '第五张卡片',
+    name: '钱七',
+    age: 32
+  }, {
+    id: '5',
+    title: '第五张卡片',
+    name: '钱七',
+    age: 32
+  }, {
+    id: '5',
+    title: '第五张卡片',
+    name: '钱七',
+    age: 32
+  }, {
+    id: '5',
+    title: '第五张卡片',
+    name: '钱七',
+    age: 32
+  }
   ];
   @State private nextCardId: number = 6; // 下一张卡片的ID
   @State private isLoading: boolean = false; // 是否正在加载
@@ -56,7 +101,9 @@ struct Index {
         },
         cardBuilder: this.buildCard,
         swipeConfig: {
-          preloadThreshold: 2 // 剩余2张卡片时触发预加载
+          preloadThreshold: 4, // 剩余2张卡片时触发预加载
+          cardSpacing: 16,
+          maxVisibleCards: 4
         }
       })
         .width('90%')
@@ -82,7 +129,7 @@ struct Index {
         .fontSize(16)
         .fontColor(Color.White)
         .margin({ bottom: 5 })
-        
+
       Text(`年龄: ${cardData.age ?? 0}岁`)
         .fontSize(16)
         .fontColor(Color.White)
@@ -101,7 +148,20 @@ struct Index {
     }
     .width('100%')
     .height('100%')
-    .borderRadius(20)
+    .borderRadius(20) // 用户自定义圆角
+    .shadow({
+      // 用户自定义阴影
+      radius: 8,
+      color: Color.Black,
+      offsetX: 2,
+      offsetY: 2
+    })
+    .border({
+      // 用户自定义边框
+      width: 1,
+      color: Color.White,
+      radius: 20
+    })
     .justifyContent(FlexAlign.Center)
     .backgroundColor("#FF6B6B")
   }
@@ -109,7 +169,7 @@ struct Index {
   private handleCardSwiped: OnCardSwipedCallback = (direction: SwipeDirection, data: object, index: number): void => {
     // 类型断言：将object转换为CardData
     const cardData: CardData = data as CardData;
-    
+
     hilog.debug(0x0000, TAG, '卡片 "%{public}s" 向 %{public}s 滑动', cardData.title ?? '未知', direction);
 
     // 可以在这里添加更多的交互逻辑
@@ -119,7 +179,6 @@ struct Index {
       hilog.debug(0x0000, TAG, '用户喜欢这张卡片');
     }
   };
-  
   private handleLoadNextPage: OnLoadNextPageCallback = (currentIndex: number, remainingCount: number): void => {
     hilog.debug(0x0000, TAG, '触发预加载: currentIndex=%{public}d, remainingCount=%{public}d', currentIndex,
       remainingCount);

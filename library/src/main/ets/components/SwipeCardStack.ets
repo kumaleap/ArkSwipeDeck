@@ -129,13 +129,6 @@ export struct SwipeCardStack {
     }
     .width(this.componentWidth * LayoutConstants.DEFAULT_CARD_WIDTH_RATIO)
     .height(this.componentHeight * LayoutConstants.DEFAULT_CARD_HEIGHT_RATIO)
-    .borderRadius(LayoutConstants.CARD_BORDER_RADIUS)
-    .shadow({
-      radius: LayoutConstants.CARD_SHADOW_BLUR,
-      color: Color.Black,
-      offsetX: LayoutConstants.CARD_SHADOW_OFFSET,
-      offsetY: LayoutConstants.CARD_SHADOW_OFFSET
-    })
     .translate(this.getCardTranslate(stackIndex, dataIndex))
     .scale(this.getCardScale(stackIndex, dataIndex))
     .rotate(this.getCardRotation(stackIndex, dataIndex))
