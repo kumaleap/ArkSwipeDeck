@@ -72,6 +72,39 @@ export struct SwipeCardStack {
     }
   }
 
+  /**
+   * 添加新的卡片数据
+   * @param newCards - 新的卡片数据数组
+   */
+  public addCards(newCards: CardData[]): void {
+    if (newCards.length === 0) {
+      hilog.debug(0x0000, TAG, 'addCards: 没有新卡片需要添加');
+      return;
+    }
+    
+    const oldLength: number = this.cardDataList.length;
+    
+    // 添加新卡片到数组末尾
+    for (let i = 0; i < newCards.length; i++) {
+      this.cardDataList.push(newCards[i]);
+    }
+    
+    hilog.debug(0x0000, TAG, 'addCards: 添加了%{public}d张新卡片，总数从%{public}d变为%{public}d', 
+      newCards.length, oldLength, this.cardDataList.length);
+    
+    // 输出新添加的卡片信息
+    for (let i = 0; i < newCards.length; i++) {
+      hilog.debug(0x0000, TAG, '新卡片 %{public}d: id=%{public}s', oldLength + i, newCards[i].id);
+    }
+  }
+
+  /**
+   * 获取当前卡片索引
+   */
+  public getCurrentIndex(): number {
+    return this.currentIndex;
+  }
+
   build(): void {
     Stack() {
       if (this.componentWidth > 0 && this.componentHeight > 0) {
@@ -128,7 +161,7 @@ export struct SwipeCardStack {
     .scale(this.getCardScale(stackIndex, dataIndex))
     .rotate(this.getCardRotation(stackIndex, dataIndex))
     .opacity(this.getCardOpacity(stackIndex, dataIndex))
-    .zIndex(this.finalConfig.maxVisibleCards - stackIndex)
+    .zIndex(this.getCardZIndex(dataIndex))
     .gesture(
       // 给所有卡片添加手势，但在事件中判断是否响应
       PanGesture({ fingers: 1, direction: PanDirection.All, distance: 1 })
@@ -335,6 +368,19 @@ export struct SwipeCardStack {
   }
 
   /**
+   * 获取卡片层级
+   */
+  private getCardZIndex(dataIndex: number): number {
+    // 确保当前卡片在最上层，后续卡片按顺序递减
+    // 使用一个较大的基数来确保正确的层叠顺序
+    const baseZIndex: number = 1000;
+    const zIndex: number = baseZIndex - (dataIndex - this.currentIndex);
+    hilog.debug(0x0000, TAG, 'getCardZIndex: dataIndex=%{public}d, currentIndex=%{public}d, zIndex=%{public}d', 
+      dataIndex, this.currentIndex, zIndex);
+    return zIndex;
+  }
+
+  /**
    * 获取卡片手势
    */
   private getCardGesture(data: CardData, dataIndex: number, stackIndex: number): GestureGroupInterface {
@@ -393,18 +439,23 @@ export struct SwipeCardStack {
    * 滑动完成处理
    */
   private onSwipeComplete(data: CardData, dataIndex: number, direction: SwipeDirection): void {
-    // 重置顶层卡片动画
-    this.topCardAnimation = {
-      translateX: 0,
-      translateY: 0,
-      rotation: 0,
-      scale: 1,
-      opacity: 1
-    };
-
     // 移动到下一张卡片
     this.currentIndex++;
     hilog.debug(0x0000, TAG, '切换到下一张卡片，新的currentIndex: %{public}d', this.currentIndex);
+    
+    // 平滑重置顶层卡片动画，避免突然放大
+    animateTo({
+      duration: 150,
+      curve: Curve.EaseOut
+    }, (): void => {
+      this.topCardAnimation = {
+        translateX: 0,
+        translateY: 0,
+        rotation: 0,
+        scale: 1,
+        opacity: 1
+      };
+    });
     
     // 输出新的顶层卡片信息
     if (this.currentIndex < this.cardDataList.length) {
@@ -431,6 +482,12 @@ export struct SwipeCardStack {
     if (remainingCount === 0 && this.eventHandler.onStackEmpty) {
       hilog.debug(0x0000, TAG, '栈空了');
       this.eventHandler.onStackEmpty();
+    }
+
+    // 检查是否需要预加载下一页
+    if (remainingCount <= this.finalConfig.preloadThreshold && this.eventHandler.onLoadNextPage) {
+      hilog.debug(0x0000, TAG, '触发预加载回调，剩余: %{public}d, 阈值: %{public}d', remainingCount, this.finalConfig.preloadThreshold);
+      this.eventHandler.onLoadNextPage(this.currentIndex, remainingCount);
     }
 
     this.cardState = CardState.IDLE;

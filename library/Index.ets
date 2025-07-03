@@ -21,6 +21,7 @@ export type {
   OnCardClickedCallback,
   OnStackNearEmptyCallback,
   OnStackEmptyCallback,
+  OnLoadNextPageCallback,
   SwipeEventHandler
 } from './src/main/ets/types/SwipeCardTypes';
 

@@ -65,6 +65,13 @@ export type OnStackNearEmptyCallback = (remainingCount: number) => void;
 export type OnStackEmptyCallback = () => void;
 
 /**
+ * 预加载下一页回调函数类型
+ * @param currentIndex - 当前卡片索引
+ * @param remainingCount - 剩余卡片数量
+ */
+export type OnLoadNextPageCallback = (currentIndex: number, remainingCount: number) => void;
+
+/**
  * 滑动事件处理器接口
  */
 export interface SwipeEventHandler {
@@ -87,6 +94,11 @@ export interface SwipeEventHandler {
    * 卡片栈为空回调
    */
   onStackEmpty?: OnStackEmptyCallback;
+
+  /**
+   * 预加载下一页回调
+   */
+  onLoadNextPage?: OnLoadNextPageCallback;
 }
 
 /**
@@ -140,6 +152,12 @@ export interface SwipeConfig {
    * @default 8
    */
   cardSpacing?: number;
+
+  /**
+   * 预加载触发阈值（剩余卡片数量）
+   * @default 3
+   */
+  preloadThreshold?: number;
 }
 
 /**

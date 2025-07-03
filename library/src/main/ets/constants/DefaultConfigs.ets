@@ -20,7 +20,8 @@ export const DEFAULT_SWIPE_CONFIG: Required<SwipeConfig> = {
   swipeThreshold: 100,
   animationDuration: 300,
   enableSpringBack: true,
-  cardSpacing: 8
+  cardSpacing: 8,
+  preloadThreshold: 3
 };
 
 /**
@@ -97,7 +98,8 @@ export function mergeSwipeConfig(userConfig?: SwipeConfig): Required<SwipeConfig
     swipeThreshold: DEFAULT_SWIPE_CONFIG.swipeThreshold,
     animationDuration: DEFAULT_SWIPE_CONFIG.animationDuration,
     enableSpringBack: DEFAULT_SWIPE_CONFIG.enableSpringBack,
-    cardSpacing: DEFAULT_SWIPE_CONFIG.cardSpacing
+    cardSpacing: DEFAULT_SWIPE_CONFIG.cardSpacing,
+    preloadThreshold: DEFAULT_SWIPE_CONFIG.preloadThreshold
   };
   
   if (userConfig !== undefined) {
@@ -124,6 +126,9 @@ export function mergeSwipeConfig(userConfig?: SwipeConfig): Required<SwipeConfig
     }
     if (userConfig.cardSpacing !== undefined) {
       merged.cardSpacing = userConfig.cardSpacing;
+    }
+    if (userConfig.preloadThreshold !== undefined) {
+      merged.preloadThreshold = userConfig.preloadThreshold;
     }
   }
   
