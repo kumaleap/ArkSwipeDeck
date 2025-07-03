@@ -13,77 +13,35 @@ import {
   SwipeDirection,
   type OnCardSwipedCallback,
   type OnLoadNextPageCallback
-} from 'arkswipe-deck';
+} from 'ark-swipe-deck';
 
 // 日志标签
 const TAG: string = 'ArkSwipeDeck';
 
-/**
- * 示例卡片数据类
- */
-export class CardData {
-  id?: string;
-  title?: string;
-  name?: string;
-  age?: number;
+export class UserInfo {
+  src?: string;
 }
 
 @Entry
 struct Index {
-  @State private cards: CardData[] = [
-    {
-      id: '1',
-      title: '第一张卡片',
-      name: '张三',
-      age: 25
-    },
-    {
-      id: '2',
-      title: '第二张卡片',
-      name: '李四',
-      age: 28
-    },
-    {
-      id: '3',
-      title: '第三张卡片',
-      name: '王五',
-      age: 30
-    },
-    {
-      id: '4',
-      title: '第四张卡片',
-      name: '赵六',
-      age: 26
-    },
-    {
-      id: '5',
-      title: '第五张卡片',
-      name: '钱七',
-      age: 32
-    }, {
-    id: '5',
-    title: '第五张卡片',
-    name: '钱七',
-    age: 32
-  }, {
-    id: '5',
-    title: '第五张卡片',
-    name: '钱七',
-    age: 32
-  }, {
-    id: '5',
-    title: '第五张卡片',
-    name: '钱七',
-    age: 32
-  }, {
-    id: '5',
-    title: '第五张卡片',
-    name: '钱七',
-    age: 32
-  }
+  private readonly imageList: string[] = [
+    'https://images.unsplash.com/photo-1519125323398-675f0ddb6308?w=800&h=1422&fit=crop',
+    'https://images.unsplash.com/photo-1511367461989-f85a21fda167?w=800&h=1422&fit=crop',
+    'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=800&h=1422&fit=crop',
+    'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=800&h=1422&fit=crop',
+    'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=800&h=1422&fit=crop',
+    'https://images.unsplash.com/photo-1519125323398-675f0ddb6308?w=800&h=1422&fit=crop',
+    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&h=1422&fit=crop',
+    'https://fastly.picsum.photos/id/314/800/1422.jpg?hmac=hCc3DkCNPtN0tJLo2PS7PlrAnnJ89yhoRT9kwIpdV6c',
+    'https://images.unsplash.com/photo-1465101046530-73398c7f28ca?w=800&h=1422&fit=crop',
+    'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&h=1422&fit=crop'
   ];
-  @State private nextCardId: number = 6; // 下一张卡片的ID
   @State private isLoading: boolean = false; // 是否正在加载
+  @State private cards: UserInfo[] = [];
+
+  aboutToAppear(): void {
+    this.loadMoreCards(10)
+  }
 
   build(): void {
     Column() {
@@ -101,12 +59,11 @@ struct Index {
         },
         cardBuilder: this.buildCard,
         swipeConfig: {
-          preloadThreshold: 4, // 剩余2张卡片时触发预加载
-          cardSpacing: 16,
-          maxVisibleCards: 4
+          scaleRatio: 0.8,
+          preloadThreshold: 3,
         }
       })
-        .width('90%')
+        .width('70%')
         .height(400)
         .margin({ bottom: 20 })
     }
@@ -117,121 +74,67 @@ struct Index {
   }
 
   @Builder
-  buildCard(cardData: CardData, index: number): void {
-    Column() {
-      Text(cardData.title ?? '默认标题')
-        .fontSize(20)
+  buildCard(data: UserInfo, index: number): void {
+    Stack() {
+      Image(data?.src ?? "")
+        .width('100%')
+        .height('100%')
+        .borderRadius(20) // 用户自定义圆角
+        .flexShrink(1)
+      Text(`${index}`)
+        .width("100%")
+        .height(40)
+        .fontSize(16)
+        .fontColor("#333")
         .fontWeight(FontWeight.Bold)
-        .fontColor(Color.White)
-        .margin({ bottom: 10 })
-
-      Text(`姓名: ${cardData.name ?? '未知'}`)
-        .fontSize(16)
-        .fontColor(Color.White)
-        .margin({ bottom: 5 })
-
-      Text(`年龄: ${cardData.age ?? 0}岁`)
-        .fontSize(16)
-        .fontColor(Color.White)
-        .margin({ bottom: 10 })
-
-      Text(`卡片编号: ${index + 1}`)
-        .fontSize(14)
-        .fontColor(Color.White)
-        .opacity(0.8)
-
-      Text('左滑不喜欢，右滑喜欢')
-        .fontSize(12)
-        .fontColor(Color.White)
-        .opacity(0.6)
-        .margin({ top: 10 })
+        .textAlign(TextAlign.Center)
+        .borderRadius({ bottomLeft: 20, bottomRight: 20 })
+        .backgroundColor(Color.White)
     }
+    .alignContent(Alignment.Bottom)
     .width('100%')
     .height('100%')
+    .backgroundColor(Color.White)
     .borderRadius(20) // 用户自定义圆角
     .shadow({
       // 用户自定义阴影
-      radius: 8,
-      color: Color.Black,
+      radius: 20,
+      color: Color.Gray,
       offsetX: 2,
       offsetY: 2
     })
-    .border({
-      // 用户自定义边框
-      width: 1,
-      color: Color.White,
-      radius: 20
-    })
-    .justifyContent(FlexAlign.Center)
-    .backgroundColor("#FF6B6B")
   }
 
   private handleCardSwiped: OnCardSwipedCallback = (direction: SwipeDirection, data: object, index: number): void => {
-    // 类型断言：将object转换为CardData
-    const cardData: CardData = data as CardData;
-
-    hilog.debug(0x0000, TAG, '卡片 "%{public}s" 向 %{public}s 滑动', cardData.title ?? '未知', direction);
-
     // 可以在这里添加更多的交互逻辑
-    if (direction === SwipeDirection.LEFT) {
-      hilog.debug(0x0000, TAG, '用户不喜欢这张卡片');
-    } else if (direction === SwipeDirection.RIGHT) {
-      hilog.debug(0x0000, TAG, '用户喜欢这张卡片');
-    }
+    hilog.debug(0x0000, TAG, '用户滑动了卡片: direction=%{public}d, data=%{public}s, index=%{public}d', direction, data,
+      index)
   };
   private handleLoadNextPage: OnLoadNextPageCallback = (currentIndex: number, remainingCount: number): void => {
     hilog.debug(0x0000, TAG, '触发预加载: currentIndex=%{public}d, remainingCount=%{public}d', currentIndex,
       remainingCount);
-
     // 避免重复加载
     if (this.isLoading) {
       hilog.debug(0x0000, TAG, '正在加载中，跳过本次预加载');
       return;
     }
 
-    this.loadMoreCards();
+    this.loadMoreCards(10);
   };
 
-  /**
-   * 模拟加载更多卡片
-   */
-  private loadMoreCards(): void {
+  private loadMoreCards(count: number): void {
     this.isLoading = true;
-    hilog.debug(0x0000, TAG, '开始加载更多卡片...');
-
-    // 模拟网络请求延迟
     setTimeout((): void => {
-      const newCards: CardData[] = this.generateNewCards(3); // 每次加载3张新卡片
-
-      // ArkTS规范：手动循环替代扩展运算符
+      const newCards: object[] = [];
+      for (let i = 0; i < count; i++) {
+        //随机从图片列表中随机获取一张图片
+        const imageUrl: string = this.imageList[i];
+        newCards.push({ src: imageUrl } as UserInfo);
+      }
       for (let i = 0; i < newCards.length; i++) {
         this.cards.push(newCards[i]);
       }
-
-      hilog.debug(0x0000, TAG, '成功加载了%{public}d张新卡片，总数: %{public}d', newCards.length, this.cards.length);
-
       this.isLoading = false;
-    }, 1000); // 模拟1秒的加载时间
-  }
-
-  /**
-   * 生成新的卡片数据
-   */
-  private generateNewCards(count: number): CardData[] {
-    const newCards: CardData[] = [];
-    const names: string[] = ['新用户A', '新用户B', '新用户C', '新用户D', '新用户E'];
-
-    for (let i = 0; i < count; i++) {
-      const cardData: CardData = {
-        id: this.nextCardId.toString(),
-        title: `第${this.nextCardId}张卡片`,
-        name: names[i % names.length],
-        age: 20 + Math.floor(Math.random() * 15) // 20-35岁随机年龄
-      };
-      newCards.push(cardData);
-      this.nextCardId++;
-    }
-
-    return newCards;
+    }, 800);
   }
 }

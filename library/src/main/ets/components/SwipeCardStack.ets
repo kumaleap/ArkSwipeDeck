@@ -95,7 +95,7 @@ export struct SwipeCardStack {
           (cardInfo: InternalCardInfo) => {
             this.buildCard(cardInfo.data, cardInfo.dataIndex, cardInfo.stackIndex);
           },
-          (cardInfo: InternalCardInfo): string => cardInfo.dataIndex.toString()
+          (cardInfo: InternalCardInfo): string => `${cardInfo.dataIndex}-${cardInfo.stackIndex}` // 更稳定的key
         )
       } else {
         // 占位符，等待组件尺寸初始化
@@ -233,6 +233,10 @@ export struct SwipeCardStack {
    * 更新背景卡片跟随动画
    */
   private updateBackgroundCardAnimation(): void {
+    // 只在拖拽时更新，避免不必要的计算
+    if (this.dragProgress <= 0) {
+      return;
+    }
     // 根据拖拽进度计算背景卡片的动画参数
     // progress为0时，背景卡片在原位；progress为1时，背景卡片接近顶层位置
     const progress: number = this.dragProgress;
@@ -395,7 +399,7 @@ export struct SwipeCardStack {
     // 执行滑出动画
     animateTo({
       duration: this.finalConfig.animationDuration,
-      curve: Curve.EaseOut,
+      curve: Curve.Smooth,
       onFinish: (): void => {
         this.onSwipeComplete(data, dataIndex, direction);
       }

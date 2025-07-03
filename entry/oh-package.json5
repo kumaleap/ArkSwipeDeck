@@ -6,7 +6,7 @@
   "author": "ArkSwipeDeck Contributors",
   "license": "Apache-2.0",
   "dependencies": {
-    "arkswipe-deck": "file:../library"
+    "ark-swipe-deck": "file:../library"
   }
 }
 
