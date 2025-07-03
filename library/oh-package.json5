@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "A pure HarmonyOS ArkTS swipe card stack container component that provides Tinder-style swiping interactions with smooth animations and comprehensive event callbacks. Focuses on container capabilities with fully customizable content through Builder patterns.",
   "main": "Index.ets",
-  "author": "ArkSwipeDeck Contributors",
+  "author": "androidzk@163.com",
   "license": "Apache-2.0",
   "keywords": [
     "harmonyos",
