@@ -85,6 +85,7 @@ struct Index {
     }
     .width('100%')
     .height('100%')
+    .borderRadius(20)
     .justifyContent(FlexAlign.Center)
     .backgroundColor("#96CEB4")
   }

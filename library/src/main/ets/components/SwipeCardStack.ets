@@ -53,6 +53,16 @@ export struct SwipeCardStack {
     scale: 1,
     opacity: 1
   };
+  /** 背景卡片跟随动画参数 */
+  @State private backgroundCardAnimation: AnimationParams = {
+    translateX: 0,
+    translateY: 0,
+    rotation: 0,
+    scale: 1,
+    opacity: 1
+  };
+  /** 当前拖拽进度 (0-1) */
+  @State private dragProgress: number = 0;
   /** 组件宽度 */
   @State private componentWidth: number = 0;
   /** 组件高度 */
@@ -177,6 +187,8 @@ export struct SwipeCardStack {
           
           hilog.debug(0x0000, TAG, '当前卡片拖拽开始: cardId=%{public}s', data.id);
           this.cardState = CardState.DRAGGING;
+          // 重置拖拽进度
+          this.dragProgress = 0;
         })
         .onActionUpdate((event: GestureEvent): void => {
           // 只有当前索引对应的卡片才响应手势
@@ -189,7 +201,11 @@ export struct SwipeCardStack {
           const deltaY: number = event.offsetY;
           hilog.debug(0x0000, TAG, '拖拽更新: deltaX=%{public}d, deltaY=%{public}d', deltaX, deltaY);
           
-          // 直接更新顶层卡片动画
+          // 计算拖拽进度 (基于距离和阈值)
+          const distance: number = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+          this.dragProgress = Math.min(distance / this.finalConfig.swipeThreshold, 1.0);
+          
+          // 更新顶层卡片动画
           const cardWidth: number = this.componentWidth * LayoutConstants.DEFAULT_CARD_WIDTH_RATIO;
           this.topCardAnimation = {
             translateX: deltaX,
@@ -198,6 +214,9 @@ export struct SwipeCardStack {
             scale: 1,
             opacity: 1
           };
+          
+          // 更新背景卡片跟随动画
+          this.updateBackgroundCardAnimation();
         })
         .onActionEnd((event: GestureEvent): void => {
           hilog.debug(0x0000, TAG, '手势结束: cardId=%{public}s, dataIndex=%{public}d, currentIndex=%{public}d', data.id, dataIndex, this.currentIndex);
@@ -230,6 +249,9 @@ export struct SwipeCardStack {
               scale: 1,
               opacity: 1
             };
+            // 重置背景卡片动画和拖拽进度
+            this.dragProgress = 0;
+            this.updateBackgroundCardAnimation();
             this.cardState = CardState.IDLE;
           }
         })
@@ -282,10 +304,43 @@ export struct SwipeCardStack {
   }
 
   /**
+   * 更新背景卡片跟随动画
+   */
+  private updateBackgroundCardAnimation(): void {
+    // 根据拖拽进度计算背景卡片的动画参数
+    // progress为0时，背景卡片在原位；progress为1时，背景卡片接近顶层位置
+    const progress: number = this.dragProgress;
+    
+    // 获取第二张卡片的原始位置（stackIndex=1）
+    const originalStackAnimation: AnimationParams = AnimationUtils.calculateStackAnimation(
+      1,
+      this.finalConfig.scaleRatio,
+      this.finalConfig.cardSpacing
+    );
+    
+    // 目标是顶层卡片的位置和大小
+    const targetTranslateX: number = 0;
+    const targetTranslateY: number = 0;
+    const targetScale: number = 1;
+    
+    // 插值计算当前位置
+    this.backgroundCardAnimation = {
+      translateX: originalStackAnimation.translateX + (targetTranslateX - originalStackAnimation.translateX) * progress,
+      translateY: originalStackAnimation.translateY + (targetTranslateY - originalStackAnimation.translateY) * progress,
+      rotation: 0,
+      scale: originalStackAnimation.scale + (targetScale - originalStackAnimation.scale) * progress,
+      opacity: 1
+    };
+    
+    hilog.debug(0x0000, TAG, 'updateBackgroundCardAnimation: progress=%{public}f, scale=%{public}f', progress, this.backgroundCardAnimation.scale);
+  }
+
+  /**
    * 获取卡片位移
    */
   private getCardTranslate(stackIndex: number, dataIndex: number): TranslateOptions {
     if (dataIndex === this.currentIndex) {
+      // 当前卡片
       hilog.debug(0x0000, TAG, 'getCardTranslate: 当前卡片 dataIndex=%{public}d, translateX=%{public}d, translateY=%{public}d', 
         dataIndex, this.topCardAnimation.translateX, this.topCardAnimation.translateY);
       const translateOptions: TranslateOptions = {
@@ -294,7 +349,18 @@ export struct SwipeCardStack {
         z: 0
       };
       return translateOptions;
+    } else if (dataIndex === this.currentIndex + 1 && this.dragProgress > 0) {
+      // 第二张卡片，且正在拖拽时使用跟随动画
+      hilog.debug(0x0000, TAG, 'getCardTranslate: 跟随卡片 dataIndex=%{public}d, translateX=%{public}d, translateY=%{public}d', 
+        dataIndex, this.backgroundCardAnimation.translateX, this.backgroundCardAnimation.translateY);
+      const translateOptions: TranslateOptions = {
+        x: this.backgroundCardAnimation.translateX,
+        y: this.backgroundCardAnimation.translateY,
+        z: 0
+      };
+      return translateOptions;
     } else {
+      // 其他背景卡片
       const stackAnimation: AnimationParams = AnimationUtils.calculateStackAnimation(
         stackIndex,
         this.finalConfig.scaleRatio,
@@ -316,13 +382,23 @@ export struct SwipeCardStack {
    */
   private getCardScale(stackIndex: number, dataIndex: number): ScaleOptions {
     if (dataIndex === this.currentIndex) {
+      // 当前卡片
       const scaleOptions: ScaleOptions = {
         x: this.topCardAnimation.scale,
         y: this.topCardAnimation.scale,
         z: 1
       };
       return scaleOptions;
+    } else if (dataIndex === this.currentIndex + 1 && this.dragProgress > 0) {
+      // 第二张卡片，且正在拖拽时使用跟随动画
+      const scaleOptions: ScaleOptions = {
+        x: this.backgroundCardAnimation.scale,
+        y: this.backgroundCardAnimation.scale,
+        z: 1
+      };
+      return scaleOptions;
     } else {
+      // 其他背景卡片
       const stackAnimation: AnimationParams = AnimationUtils.calculateStackAnimation(
         stackIndex,
         this.finalConfig.scaleRatio,
@@ -439,7 +515,11 @@ export struct SwipeCardStack {
    * 滑动完成处理
    */
   private onSwipeComplete(data: CardData, dataIndex: number, direction: SwipeDirection): void {
-    // 先立即重置动画状态，避免下一张卡片继承当前动画状态
+    // 移动到下一张卡片
+    this.currentIndex++;
+    hilog.debug(0x0000, TAG, '切换到下一张卡片，新的currentIndex: %{public}d', this.currentIndex);
+    
+    // 重置所有动画状态
     this.topCardAnimation = {
       translateX: 0,
       translateY: 0,
@@ -447,10 +527,14 @@ export struct SwipeCardStack {
       scale: 1,
       opacity: 1
     };
-    
-    // 然后移动到下一张卡片
-    this.currentIndex++;
-    hilog.debug(0x0000, TAG, '切换到下一张卡片，新的currentIndex: %{public}d', this.currentIndex);
+    this.backgroundCardAnimation = {
+      translateX: 0,
+      translateY: 0,
+      rotation: 0,
+      scale: 1,
+      opacity: 1
+    };
+    this.dragProgress = 0;
     
     // 输出新的顶层卡片信息
     if (this.currentIndex < this.cardDataList.length) {
