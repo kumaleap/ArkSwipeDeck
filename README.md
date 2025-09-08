@@ -8,9 +8,9 @@
 
 ---
 
-## 示例效果
-
-![ArkSwipeDeck 示例](example.png)
+<p align="center">
+  <img src="demo.gif" alt="鸿蒙ArkTS卡片堆叠 演示" width="600" style="max-width: 100%;" />
+</p>
 
 > 纯净的鸿蒙ArkTS卡片堆叠滑动组件，提供 Tinder 风格的滑动交互、流畅动画和完整的事件回调体系。
 
